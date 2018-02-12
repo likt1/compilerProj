@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-I.
-DEPS = lexer.h
+DEPS = lexer.h error.h
 
 CXXFLAGS=-std=c++11
 
