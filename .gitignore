@@ -1,0 +1,7 @@
+# objects
+*.o
+
+# output program
+compiler
+
+# program gui output
