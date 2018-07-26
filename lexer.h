@@ -7,18 +7,15 @@
 #include <string>
 #include <unordered_map>
 
-#define symbol_table std::unordered_map<const char*, tok>
-// define a symbol table list to work with block independence?
-
 // enum token type TODO
 enum token_type {
-  unknown,
   integer,
   floating,
+  character,
   string,
-  symbol,
+  symbol, // operator
   identifier,
-  reserved
+  keyword
 };
 
 // enum symbol TODO
@@ -29,8 +26,8 @@ enum symbol_type {
   divider
 };
 
-// enum reserved TODO
-enum reserved_type {
+// enum keyword TODO
+enum keyword_type {
   res_if,
   res_else
 };
@@ -42,21 +39,21 @@ struct tok {
   union {
     int i;
     float f;
+    char c;
     symbol_type s;
-    reserved_type r;
+    keyword_type r;
   };
-  int linePos; // line of last char
-  int charPos; // loc of last char
+  int linePos; // line of first char
+  int charPos; // loc of first char
 };
 
 class lexer {
 
 private:
-  symbol_table* globalT;
+  std::unordered_map<const char*, keyword_type> keywordL;
   error_list* errL;
   
   std::fstream fs;
-  
   
   void reportError(err_type, char*);
 
@@ -86,15 +83,16 @@ public:
   //   Sets tokCursor, curLine, curChar to 0
   // Returns
   //   Success/fail.
-  bool init(char*, symbol_table*, error_list*);
+  bool init(char*, error_list*);
   
   // Closes the file
   bool deinit();
   
-  // Returns the next token, if tokCursor is smaller than tokCount (we have
-  //   backed up), return next token from tokMem
+  // Saves the next token in the input obj, if tokCursor is smaller than 
+  //   tokCount (we have backed up), return next token from tokMem
   // Will always increment tokCursor
-  tok next_tok(symbol_table*); // current scope required)
+  // Returns true if no error and false otherwise
+  bool next_tok(tok &);
   
   // Decrements tokCursor (calling next_tok right after will return the same 
   //   token as the cursor only moves behind one space)

@@ -8,8 +8,7 @@ lexer::lexer() {
 lexer::~lexer() {
 }
 
-bool lexer::init(char* fn, symbol_table* gbTbl, error_list* el) {
-  globalT = gbTbl;
+bool lexer::init(char* fn, error_list* el) {
   errL = el;
   fs.open(fn, std::fstream::in);
   
@@ -19,6 +18,7 @@ bool lexer::init(char* fn, symbol_table* gbTbl, error_list* el) {
   backtracking = false;
   
   // TODO populate globalT with reserved words
+  keywordL.insert({"if", keyword_type::res_if});
 
   return true;
 }
@@ -44,8 +44,8 @@ void lexer::reportError(err_type eT, char* msg) {
   std::cout << newError.charNum << "\n";
 }
 
-tok lexer::next_tok(symbol_table* loc_tbl) {
-  tok out;
+bool lexer::next_tok(tok &out) {
+  bool good = true;
   if (backtracking) {
     // grab next tokMem (since cursor is 1 ahead, grab the current tok)
     out = tokMem.at(tokCursor);
@@ -74,11 +74,13 @@ tok lexer::next_tok(symbol_table* loc_tbl) {
         case ' ':
           whitespace = true;
           break;
+        case '|': // illegal characters TODO
+          whitespace = true;
+          good = false;
+          break;
       }
       
       // TODO state machine to gen tokens
-      
-      
       // case statement for states
       switch (state) {
         case 0: // nothing's happened yet
@@ -94,6 +96,9 @@ tok lexer::next_tok(symbol_table* loc_tbl) {
         case 2:
           break;
       }
+      
+      // IF the token type ends up being some sort of identifier, compare to 
+      //   keyword list to check to see if it's a keyword
       
       // before moving to ending state -1, set tokenType, name, and union
       /*struct tok {
@@ -132,7 +137,7 @@ tok lexer::next_tok(symbol_table* loc_tbl) {
     curChar = storedChar;
   }
   
-  return out;
+  return good;
 }
 
 void lexer::undo() {
