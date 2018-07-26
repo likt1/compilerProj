@@ -13,8 +13,12 @@ bool lexer::init(char* fn, symbol_table* gbTbl, error_list* el) {
   errL = el;
   fs.open(fn, std::fstream::in);
   
-  curLine = 0; curChar = 0;
+  curLine = 1; curChar = 0;
+  storedLine = 0; storedChar = 0;
   tokCursor = 0;
+  backtracking = false;
+  
+  // TODO populate globalT with reserved words
 
   return true;
 }
@@ -39,35 +43,82 @@ void lexer::reportError(err_type eT, char* msg) {
   std::cout << newError.lineNum << " ";
   std::cout << newError.charNum << "\n";
 }
-  
+
+test line of stuff
+
 tok lexer::next_tok(symbol_table* loc_tbl) {
   tok out;
-  if (tokMem.size() > tokCursor) {
+  if (backtracking) {
     // grab next tokMem (since cursor is 1 ahead, grab the current tok)
     out = tokMem.at(tokCursor);
+    
+    curLine = out.linePos;
+    curChar = out.charPos;
   }
   else {
-    // get next token 
-    char nxtChar;
-    fs.get(nxtChar);
-    
-    /*
-    struct tok {
-      token_type tokenType;
-      union {
-        int i;
-        symbol_type s;
-        char* name;
+    int state = 0;
+    bool fileComplete = false;
+    std::string fullToken;
+    do {
+      bool whitespace = false;
+      char nxtChar;
+      
+      if (!fs.get(nxtChar)) {
+        fileComplete = true;
+        whitespace = true;
+      }
+      curChar++;
+      
+      if (nxtChar == '\n') {
+        curLine++;
+        curChar = 0;
+        whitespace = true;
+      } else if (nxtChar == ' ') {
+        whitespace = true;
+      }
+      
+      // TODO state machine to gen tokens
+      
+      
+      // case statement for states
+      switch (state) {
+        case 0: // nothing's happened yet
+          // if nxtChar is something
+          // fullToken.append(nxtChar);
+          // set state depending on nxtChar (switch on nxtChar)
+          // out.linePos = curLine;
+          // out.charPos = curChar;
+          break;
+        case 1:
+          
+          break;
+        case 2:
+          break;
+      }
+      
+      // before moving to ending state -1, set tokenType, name, and union
+      /*struct tok {
+        token_type tokenType;
+        std::string name;
+        union {
+          int i;
+          float f;
+          symbol_type s;
+          reserved_type r;
+        };
+        int linePos;
+        int charPos;
       };
-      int linePos;
-      int charPos;
-    };
-    */
+      */
+      
+    } while (state != -1);
     
-    // TODO state machine to gen tokens
+    if (!whitespace) {
+      fs.unget();
+      curChar--;
+    }
     
-    
-    
+    // done
     out.name = nxtChar; // TODO temporary
     
     // add to tokMem
@@ -75,6 +126,13 @@ tok lexer::next_tok(symbol_table* loc_tbl) {
   }
   
   tokCursor++;
+  
+  if (backtracking && tokCursor == tokMem.size()) {
+    backtracking == false;
+    curLine = storedLine;
+    curChar = storedChar;
+  }
+  
   return out;
 }
 
@@ -83,4 +141,8 @@ void lexer::undo() {
   if (tokCursor < 0) {
     std::cout << "tokCursor is negative!!!";
   }
+  
+  backtracking = true;
+  storedLine = curLine;
+  storedChar = curChar;
 }

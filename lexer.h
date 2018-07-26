@@ -17,7 +17,8 @@ enum token_type {
   floating,
   string,
   symbol,
-  identifier
+  identifier,
+  reserved
 };
 
 // enum symbol TODO
@@ -28,6 +29,12 @@ enum symbol_type {
   divider
 };
 
+// enum reserved TODO
+enum reserved_type {
+  res_if,
+  res_else
+};
+
 // job object for a sample job TODO
 struct tok {
   token_type tokenType;
@@ -36,9 +43,10 @@ struct tok {
     int i;
     float f;
     symbol_type s;
+    reserved_type r;
   };
-  int linePos;
-  int charPos;
+  int linePos; // line of last char
+  int charPos; // loc of last char
 };
 
 class lexer {
@@ -49,11 +57,16 @@ private:
   
   std::fstream fs;
   
+  
   void reportError(err_type, char*);
 
 public:
   int curLine;
   int curChar;
+  
+  bool backtracking;
+  int storedLine;
+  int storedChar;
 
   std::vector<tok> tokMem;
   int tokCursor;
