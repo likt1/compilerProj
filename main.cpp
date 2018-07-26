@@ -2,7 +2,12 @@
 
 #include "lexer.h"
 
-#include <iostream>
+
+// Globals
+// symbol tables
+// error list
+// error flags
+// lexer
 
 int main(int argc, const char * argv[]) {
   std::cout << "hello world" << "\n";

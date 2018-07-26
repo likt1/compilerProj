@@ -2,7 +2,7 @@
 #define ERROR_H
 
 #include <vector>
-#define error_list std::vector<errorObj>
+#define error_list std::vector<error_obj>
 
 enum err_type {
   warning,
@@ -11,9 +11,11 @@ enum err_type {
 };
 
 // defines error obj
-struct errorObj {
+struct error_obj {
   err_type errT;
   char* msg;
+  int lineNum;
+  int charNum;
 };
 
 #endif

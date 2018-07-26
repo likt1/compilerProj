@@ -3,21 +3,25 @@
 
 #include "error.h"
 #include <fstream>
+#include <iostream>
+#include <string>
 #include <unordered_map>
 
-#define global_map std::unordered_map<const char*, char*>
+#define symbol_table std::unordered_map<const char*, tok>
+// define a symbol table list to work with block independence?
 
 // enum token type TODO
-enum tt {
+enum token_type {
   unknown,
   integer,
-  string, 
+  floating,
+  string,
   symbol,
   identifier
 };
 
 // enum symbol TODO
-enum sym {
+enum symbol_type {
   add,
   sub,
   multi,
@@ -26,34 +30,62 @@ enum sym {
 
 // job object for a sample job TODO
 struct tok {
-  tt tokenType;
+  token_type tokenType;
+  std::string name;
   union {
     int i;
-    sym s;
-    char* name;
+    float f;
+    symbol_type s;
   };
+  int linePos;
+  int charPos;
 };
 
 class lexer {
 
 private:
-  global_map* globalM;
+  symbol_table* globalT;
   error_list* errL;
   
-  void reportError();
+  std::fstream fs;
+  
+  void reportError(err_type, char*);
 
 public:
+  int curLine;
+  int curChar;
+
+  std::vector<tok> tokMem;
+  int tokCursor;
+  
+  // ^ are things that can be private but are public for debugging purposes
+  
   lexer();
   ~lexer();
   
-  // needs program file to open and parse
-  // needs global symbol table to save and find to
-  // needs global error list to handle errors
-  // DOES
-  // Inits global map with identifiers
-  bool init(char*, global_map*, error_list*); // Returns success/fail.
+  // Requires
+  //   Program file to open and parse
+  //   Global symbol table to save and find to
+  //   Global error list to handle errors
+  // Does
+  //   Inits pointer to global symbol table
+  //   Inits pointer to global error list
+  //   Sets tokCursor, curLine, curChar to 0
+  // Returns
+  //   Success/fail.
+  bool init(char*, symbol_table*, error_list*);
   
-  tok scan();
+  // Closes the file
+  bool deinit();
+  
+  // Returns the next token, if tokCursor is smaller than tokCount (we have
+  //   backed up), return next token from tokMem
+  // Will always increment tokCursor
+  tok next_tok(symbol_table*); // current scope required)
+  
+  // Decrements tokCursor (calling next_tok right after will return the same 
+  //   token as the cursor only moves behind one space)
+  void undo();
   
 };
 
