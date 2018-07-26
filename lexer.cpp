@@ -44,8 +44,6 @@ void lexer::reportError(err_type eT, char* msg) {
   std::cout << newError.charNum << "\n";
 }
 
-test line of stuff
-
 tok lexer::next_tok(symbol_table* loc_tbl) {
   tok out;
   if (backtracking) {
@@ -58,23 +56,24 @@ tok lexer::next_tok(symbol_table* loc_tbl) {
   else {
     int state = 0;
     bool fileComplete = false;
+    bool whitespace = false;
     std::string fullToken;
     do {
-      bool whitespace = false;
       char nxtChar;
-      
       if (!fs.get(nxtChar)) {
         fileComplete = true;
         whitespace = true;
       }
       curChar++;
       
-      if (nxtChar == '\n') {
-        curLine++;
-        curChar = 0;
-        whitespace = true;
-      } else if (nxtChar == ' ') {
-        whitespace = true;
+      switch (nxtChar) {
+        case '\n':
+          curLine++;
+          curChar = 0;
+        case '\t':
+        case ' ':
+          whitespace = true;
+          break;
       }
       
       // TODO state machine to gen tokens
@@ -119,7 +118,7 @@ tok lexer::next_tok(symbol_table* loc_tbl) {
     }
     
     // done
-    out.name = nxtChar; // TODO temporary
+    out.name = "temp"; // TODO temporary
     
     // add to tokMem
     tokMem.push_back(out);
