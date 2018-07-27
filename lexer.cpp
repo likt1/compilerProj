@@ -15,6 +15,7 @@ enum states {
   id_key,       // an identifier or keyword
   done          // tokenizing complete
 };
+
 //====================== Utility functions ======================//
 std::string cleanUnderscores(std::string str) {
   std::string out;
@@ -105,7 +106,6 @@ const char* lexer::keywToString(key_type keyType) {
   }
 }
   
-
 //====================== Init functions ======================//
 lexer::lexer() {
 }
@@ -167,7 +167,7 @@ void lexer::reportError(err_type eT, std::string msg) {
   errL->push_back(newError);
   std::cout << "  (L: " << newError.lineNum;
   std::cout << "|C: " << newError.charNum;
-  std::cout  << " [" << newError.errT << "] ";
+  std::cout  << ") [" << newError.errT << "] ";
   std::cout << newError.msg << "\n";
 }
 
