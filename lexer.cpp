@@ -5,6 +5,14 @@ enum states {
   unstarted,    // haven't found anything
   div_comment,  // comment start or divide
   comment,      // in a comment
+  colon_assign, // colon or assignment
+  smaller_eq,   // smaller than or <=
+  greater_eq,   // greater than or >=
+  character,    // analyzies characters
+  stringy,      // analyzes strings
+  number,       // a number (int or float)
+  decimal,      // decimal stuff in floats
+  id_key,       // an identifier or keyword
   done          // tokenizing complete
 };
 
@@ -85,12 +93,12 @@ bool lexer::next_tok(tok &out) {
   }
   else {
     states state = states::unstarted;
-    bool whitespace;
+    bool whitespace, singleton;
     std::string fullToken;
     do {
       char nxtChar;
       int commentLevel = 0;
-      whitespace = false;
+      whitespace = false; singleton = false;
       fs.get(nxtChar);
       if (nxtChar == -1) {
         fileEnd = true;
@@ -113,6 +121,7 @@ bool lexer::next_tok(tok &out) {
         case '\t':
         case ' ':
           whitespace = true;
+          break;
       }
       
       // check illegal character (not a legal character)
@@ -139,26 +148,112 @@ bool lexer::next_tok(tok &out) {
             fullToken.push_back(nxtChar);
             out.linePos = curLine;
             out.charPos = curChar;
-            switch (nxtChar) { // set state depending on nxtChar
-              case '/':
-                state = states::div_comment;
+            
+            // set state depending on nxtChar
+            if (std::isalnum(nxtChar)) {
+              if (std::isdigit(nxtChar)) { // number
+                state = states::number;
+              } else { // identifier/keyword
+                state = states::id_key;
+              }
+            } else {
+              switch (nxtChar) {
+                case '/': // handled by div_comment
+                  state = states::div_comment;
+                  break;
+                case ':': // handled by colon_assign
+                  state = states::colon_assign;
+                  break;
+                case '<': // handled by smaller_eq
+                  state = states::smaller_eq;
+                  break;
+                case '=': // handled by greater_eq
+                  state = states::greater_eq;
+                  break;
+                case '!':
+                  peeky = fs.peek();
+                  if (peeky == '=') {
+                    fs.get(nxtChar);
+                    curChar++;
+                    fullToken.push_back(nxtChar);
+                    out.tokenType = token_type::type_symb;
+                    out.s = symb_type::symb_not_equals;
+                    state = states::done;
+                    singleton = true;
+                  } else {
+                    illegalChar = true;
+                    reportError(err_type::error, "Illegal ! detected");
+                    fullToken.clear();
+                    state = states::unstarted;
+                  }
+                  break;
+                case '\'': // handled by character
+                  state = states::character;
+                  break;
+                case '"': // handled by stringy
+                  state = states::stringy;
+                  break;
+                default:
+                  out.tokenType = token_type::type_symb;
+                  singleton = true;
+                  state = states::done;
+                  switch (nxtChar) {
+                    case '.':
+                      out.s = symb_type::symb_period;
+                      break;
+                    case '(':
+                      out.s = symb_type::symb_op_paren;
+                      break;
+                    case ';':
+                      out.s = symb_type::symb_semicolon;
+                      break;
+                    case ')':
+                      out.s = symb_type::symb_cl_paren;
+                      break;
+                    case ',':
+                      out.s = symb_type::symb_comma;
+                      break;
+                    case '[':
+                      out.s = symb_type::symb_op_bracket;
+                      break;
+                    case ']':
+                      out.s = symb_type::symb_cl_bracket;
+                      break;
+                    case '-':
+                      out.s = symb_type::symb_minus;
+                      break;
+                    case '&':
+                      out.s = symb_type::symb_amper;
+                      break;
+                    case '|':
+                      out.s = symb_type::symb_straight;
+                      break;
+                    case '+':
+                      out.s = symb_type::symb_plus;
+                      break;
+                    case '*':
+                      out.s = symb_type::symb_multi;
+                      break;
+                  }
+                  break;
+              }
             }
-            state = states::done; // TODO testing temporary only, just grab chars
           }
           break;
         case states::div_comment:
-            switch (nxtChar) {
-              case '*':
-                commentLevel++;
-              case '/':
-                fullToken.clear();
-                state = states::comment;
-                break;
-              default: // actually a divide
-                out.tokenType = token_type::type_symb;
-                out.s = symb_type::symb_div;
-                state = states::done;
-            }
+          switch (nxtChar) {
+            case '*':
+              commentLevel++;
+            case '/':
+              fullToken.clear();
+              state = states::comment;
+              break;
+            default: // actually a divide
+              out.tokenType = token_type::type_symb;
+              out.s = symb_type::symb_div;
+              state = states::done;
+              break;
+          }
           break;
         case states::comment:
           switch (nxtChar) {
@@ -187,11 +282,108 @@ bool lexer::next_tok(tok &out) {
                   }
                 }
               }
+              break;
           }
           break;
-        case 3:
+        case states::colon_assign:
+          out.tokenType = token_type::type_symb;
+          if (nxtChar == '=') {
+            fullToken.push_back(nxtChar);
+            out.s = symb_type::symb_assign;
+            singleton = true;
+          } else {
+            out.s = symb_type::symb_colon;
+          }
+          state = states::done;
           break;
-        
+        case states::smaller_eq:
+          out.tokenType = token_type::type_symb;
+          if (nxtChar == '=') {
+            fullToken.push_back(nxtChar);
+            out.s = symb_type::symb_smaller_eq;
+            singleton = true;
+          } else {
+            out.s = symb_type::symb_smaller;
+          }
+          state = states::done;
+          break;
+        case states::greater_eq:
+          out.tokenType = token_type::type_symb;
+          if (nxtChar == '=') {
+            fullToken.push_back(nxtChar);
+            out.s = symb_type::symb_greater_eq;
+            singleton = true;
+          } else {
+            out.s = symb_type::symb_greater;
+          }
+          state = states::done;
+          break;
+        case states::character: // TODO
+          if (nxtChar == '=') {
+            fullToken.push_back(nxtChar);
+            out.tokenType = token_type::type_symb;
+            out.s = symb_type::symb_assign;
+            state = states::done;
+            singleton = true;
+          } else {
+            out.tokenType = token_type::type_symb;
+            out.s = symb_type::symb_colon;
+            state = states::done;
+          }
+          break;
+        case states::stringy: // TODO
+          if (nxtChar == '=') {
+            fullToken.push_back(nxtChar);
+            out.tokenType = token_type::type_symb;
+            out.s = symb_type::symb_assign;
+            state = states::done;
+            singleton = true;
+          } else {
+            out.tokenType = token_type::type_symb;
+            out.s = symb_type::symb_colon;
+            state = states::done;
+          }
+          break;
+          
+        case states::number: // TODO
+          if (nxtChar == '=') {
+            fullToken.push_back(nxtChar);
+            out.tokenType = token_type::type_symb;
+            out.s = symb_type::symb_assign;
+            state = states::done;
+            singleton = true;
+          } else {
+            out.tokenType = token_type::type_symb;
+            out.s = symb_type::symb_colon;
+            state = states::done;
+          }
+          break;
+        case states::decimal: // TODO
+          if (nxtChar == '=') {
+            fullToken.push_back(nxtChar);
+            out.tokenType = token_type::type_symb;
+            out.s = symb_type::symb_assign;
+            state = states::done;
+            singleton = true;
+          } else {
+            out.tokenType = token_type::type_symb;
+            out.s = symb_type::symb_colon;
+            state = states::done;
+          }
+          break;
+        case states::id_key: // TODO
+          if (nxtChar == '=') {
+            fullToken.push_back(nxtChar);
+            out.tokenType = token_type::type_symb;
+            out.s = symb_type::symb_assign;
+            state = states::done;
+            singleton = true;
+          } else {
+            out.tokenType = token_type::type_symb;
+            out.s = symb_type::symb_colon;
+            state = states::done;
+          }
+          break;
       }
       
       // IF the token type ends up being some sort of identifier, compare to 
@@ -214,7 +406,7 @@ bool lexer::next_tok(tok &out) {
       
     } while (state != states::done && !fileEnd);
     
-    if (!whitespace && false) {
+    if (!whitespace && !singleton) {
       fs.unget();
       curChar--;
     }

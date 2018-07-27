@@ -97,7 +97,7 @@ private:
   std::fstream fs;
   
   void reportError(err_type, const char*);
-
+  
 public:
   int curLine;
   int curChar;
