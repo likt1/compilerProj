@@ -134,6 +134,7 @@ void check_try() {
 //   Look ahead checks for spelling errors are ONLY DONE with back to back token
 //     handles.
 
+//====================== Parser functions ======================//
 void p_program(bool &success) {  
   tok token; bool suc = true;
   
@@ -648,7 +649,7 @@ void p_assignment_statement(bool &success, bool &exists) {
     p_destination(suc, exists);
     
     if (exists) {
-      tok lookahead; peekTok(lookahead);
+      tok lookahead; peekTok(lookahead); // check = or :=
       if (check_crit(lookahead, token_type::type_symb, symb_type::symb_assign)) {
         getTok(token);
       } else if (check_crit(lookahead, token_type::type_illegal, ill_type::ill_equals)) {
@@ -667,7 +668,36 @@ void p_assignment_statement(bool &success, bool &exists) {
 
 void p_destination(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    p_identifier(suc, exists);
+    
+    if (exists) {
+      bool array = false;
+      if (a_getTok(token)) { // optional [
+        if (check_crit(token, token_type::type_symb, symb_type::symb_op_bracket)) {
+          array = true;
+        } else {
+          scanner.undo();
+        }
+      } else {
+        abortFlag = true;
+      }
+      
+      if (array) {
+        p_expression(suc);
+        
+        if (a_getTok(token)) { // ]
+          if (!check_crit(token, token_type::type_symb, symb_type::symb_cl_bracket)) {
+            std::string errMsg = "Missing ']' from <destination>";
+            reportError(token, err_type::error, errMsg);
+            scanner.undo();
+          }
+        } else {
+          abortFlag = true;
+        }
+      }
+    }
   }
 }
 
