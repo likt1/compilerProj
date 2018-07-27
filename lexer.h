@@ -82,7 +82,7 @@ struct tok {
     float f;
     char c;
     symb_type s;
-    key_type r;
+    key_type k;
   };
   int linePos; // line of first char
   int charPos; // loc of first char
@@ -111,6 +111,11 @@ public:
   int tokCursor;
   
   // ^ are things that can be private but are public for debugging purposes
+  
+  // to see what we have
+  const char* typeToString(token_type);
+  const char* symbToString(symb_type);
+  const char* keywToString(key_type);
   
   lexer();
   ~lexer();

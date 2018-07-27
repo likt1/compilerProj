@@ -1,6 +1,6 @@
 #include "lexer.h"
 
-// enum state names TODO
+// enum state names
 enum states {
   unstarted,    // haven't found anything
   div_comment,  // comment start or divide
@@ -15,6 +15,96 @@ enum states {
   id_key,       // an identifier or keyword
   done          // tokenizing complete
 };
+//====================== Utility functions ======================//
+std::string cleanUnderscores(std::string str) {
+  std::string out;
+  for (size_t i = 0; i < str.size(); i++) {
+    if (str[i] != '_') {
+      out.push_back(str[i]);
+    }
+  }
+  return out;
+}
+
+int strToInt(std::string str) {
+  return std::stoi(cleanUnderscores(str));
+}
+
+float strToFl(std::string str) {
+  return std::stof(cleanUnderscores(str));
+}
+
+//====================== To String functions ======================//
+const char* lexer::typeToString(token_type tokenType) {
+  switch (tokenType) {
+    case type_int: return "int";
+    case type_float: return "float";
+    case type_char: return "char";
+    case type_string: return "string";
+    case type_symb: return "symbol";
+    case type_id: return "identifier";
+    case type_keyword: return "keyword";
+    default: return "unknown";
+  }
+}
+
+const char* lexer::symbToString(symb_type symbType) {
+  switch (symbType) {
+    case symb_period: return "period";
+    case symb_op_paren: return "op paren";
+    case symb_semicolon: return "semicolon";
+    case symb_cl_paren: return "cl paren";
+    case symb_comma: return "comma";
+    case symb_op_bracket: return "op brak";
+    case symb_colon: return "colon";
+    case symb_cl_bracket: return "cl brak";
+    case symb_minus: return "minus";
+    case symb_assign: return "assign";
+    case symb_amper: return "ampersand";
+    case symb_straight: return "straight";
+    case symb_plus: return "plus";
+    case symb_smaller: return "smol than";
+    case symb_greater: return "gr8t than";
+    case symb_smaller_eq: return "smol eq than";
+    case symb_greater_eq: return "gr8t eq than";
+    case symb_equals: return "equals";
+    case symb_not_equals: return "not eq";
+    case symb_multi: return "multiply";
+    case symb_div: return "divide";
+    case symb_quote: return "quote";
+    case symb_db_quote: return "db quote";
+    default: return "unknown";
+  }
+}
+
+const char* lexer::keywToString(key_type keyType) {
+  switch (keyType) {
+    case key_program: return "program";
+    case key_is: return "is";
+    case key_begin: return "begin";
+    case key_end: return "end";
+    case key_global: return "global";
+    case key_procedure: return "procedure";
+    case key_in: return "in";
+    case key_out: return "out";
+    case key_inout: return "inout";
+    case key_integer: return "integer";
+    case key_float: return "float";
+    case key_string: return "string";
+    case key_bool: return "bool";
+    case key_char: return "char";
+    case key_if: return "if";
+    case key_then: return "then";
+    case key_else: return "else";
+    case key_for: return "for";
+    case key_return: return "return";
+    case key_not: return "not";
+    case key_true: return "true";
+    case key_false: return "false";
+    default: return "unknown";
+  }
+}
+  
 
 //====================== Init functions ======================//
 lexer::lexer() {
@@ -75,10 +165,10 @@ void lexer::reportError(err_type eT, const char* msg) {
   newError.charNum = curChar;
 
   errL->push_back(newError);
-  std::cout  << "[" << newError.errT << "] ";
-  std::cout << newError.msg << ": ";
-  std::cout << newError.lineNum << " | ";
-  std::cout << newError.charNum << "\n";
+  std::cout << "  (L: " << newError.lineNum;
+  std::cout << "|C: " << newError.charNum;
+  std::cout  << " [" << newError.errT << "] ";
+  std::cout << newError.msg << "\n";
 }
 
 //====================== Tokenizer functions ======================//
@@ -93,12 +183,12 @@ bool lexer::next_tok(tok &out) {
   }
   else {
     states state = states::unstarted;
-    bool whitespace, singleton;
+    bool whitespace, consume;
+    int commentLevel = 0;
     std::string fullToken;
     do {
       char nxtChar;
-      int commentLevel = 0;
-      whitespace = false; singleton = false;
+      whitespace = false; consume = false;
       fs.get(nxtChar);
       if (nxtChar == -1) {
         fileEnd = true;
@@ -138,9 +228,10 @@ bool lexer::next_tok(tok &out) {
         illegalChar = true;
         reportError(err_type::error, "Illegal character detected");
         nxtChar = ' ';
+        whitespace = true;
       }
       
-      // TODO state machine to gen tokens
+      // state machine to gen tokens
       char peeky;
       switch (state) {
         case states::unstarted:
@@ -167,7 +258,7 @@ bool lexer::next_tok(tok &out) {
                 case '<': // handled by smaller_eq
                   state = states::smaller_eq;
                   break;
-                case '=': // handled by greater_eq
+                case '>': // handled by greater_eq
                   state = states::greater_eq;
                   break;
                 case '!':
@@ -179,10 +270,27 @@ bool lexer::next_tok(tok &out) {
                     out.tokenType = token_type::type_symb;
                     out.s = symb_type::symb_not_equals;
                     state = states::done;
-                    singleton = true;
+                    consume = true;
                   } else {
                     illegalChar = true;
                     reportError(err_type::error, "Illegal ! detected");
+                    fullToken.clear();
+                    state = states::unstarted;
+                  }
+                  break;
+                case '=':
+                  peeky = fs.peek();
+                  if (peeky == '=') {
+                    fs.get(nxtChar);
+                    curChar++;
+                    fullToken.push_back(nxtChar);
+                    out.tokenType = token_type::type_symb;
+                    out.s = symb_type::symb_equals;
+                    state = states::done;
+                    consume = true;
+                  } else {
+                    illegalChar = true;
+                    reportError(err_type::error, "Illegal = detected");
                     fullToken.clear();
                     state = states::unstarted;
                   }
@@ -195,7 +303,7 @@ bool lexer::next_tok(tok &out) {
                   break;
                 default:
                   out.tokenType = token_type::type_symb;
-                  singleton = true;
+                  consume = true;
                   state = states::done;
                   switch (nxtChar) {
                     case '.':
@@ -264,7 +372,7 @@ bool lexer::next_tok(tok &out) {
               break;
             case '/':
               peeky = fs.peek();
-              if (peeky == '*') {
+              if (peeky == '*' && commentLevel != 0) {
                 commentLevel++;
                 fs.get(nxtChar);
                 curChar++;
@@ -290,7 +398,7 @@ bool lexer::next_tok(tok &out) {
           if (nxtChar == '=') {
             fullToken.push_back(nxtChar);
             out.s = symb_type::symb_assign;
-            singleton = true;
+            consume = true;
           } else {
             out.s = symb_type::symb_colon;
           }
@@ -301,7 +409,7 @@ bool lexer::next_tok(tok &out) {
           if (nxtChar == '=') {
             fullToken.push_back(nxtChar);
             out.s = symb_type::symb_smaller_eq;
-            singleton = true;
+            consume = true;
           } else {
             out.s = symb_type::symb_smaller;
           }
@@ -312,101 +420,88 @@ bool lexer::next_tok(tok &out) {
           if (nxtChar == '=') {
             fullToken.push_back(nxtChar);
             out.s = symb_type::symb_greater_eq;
-            singleton = true;
+            consume = true;
           } else {
             out.s = symb_type::symb_greater;
           }
           state = states::done;
           break;
-        case states::character: // TODO
-          if (nxtChar == '=') {
-            fullToken.push_back(nxtChar);
-            out.tokenType = token_type::type_symb;
-            out.s = symb_type::symb_assign;
-            state = states::done;
-            singleton = true;
-          } else {
-            out.tokenType = token_type::type_symb;
-            out.s = symb_type::symb_colon;
-            state = states::done;
-          }
-          break;
-        case states::stringy: // TODO
-          if (nxtChar == '=') {
-            fullToken.push_back(nxtChar);
-            out.tokenType = token_type::type_symb;
-            out.s = symb_type::symb_assign;
-            state = states::done;
-            singleton = true;
-          } else {
-            out.tokenType = token_type::type_symb;
-            out.s = symb_type::symb_colon;
+        case states::character:
+          fullToken.push_back(nxtChar);
+          if (nxtChar == '\'') { // char has ended
+            peeky = fullToken[1];
+            if (fullToken.size() != 3) {
+              illegalChar = true;
+              reportError(err_type::error, "Malformed char detected");
+            } else if (!(std::isalnum(peeky) || peeky == ' ' || 
+                peeky == '_' || peeky == ';' || peeky == ':' || peeky == '.' ||
+                peeky == '"')) {
+              illegalChar = true;
+              reportError(err_type::error, "Illegal char detected");
+            }
+            out.tokenType = token_type::type_char;
+            out.c = peeky;
+            consume = true;
             state = states::done;
           }
           break;
-          
-        case states::number: // TODO
-          if (nxtChar == '=') {
-            fullToken.push_back(nxtChar);
-            out.tokenType = token_type::type_symb;
-            out.s = symb_type::symb_assign;
+        case states::stringy:
+          fullToken.push_back(nxtChar);
+          if (nxtChar == '\"') { // string has ended
+            if (fullToken.size() == 2) {
+              illegalChar = true;
+              reportError(err_type::error, "Empty string detected");
+            }
+            out.tokenType = token_type::type_string;
+            consume = true;
             state = states::done;
-            singleton = true;
+          } else if (!(std::isalnum(nxtChar) || nxtChar == ' ' || nxtChar == '_' ||
+              nxtChar == ',' || nxtChar == ';' || nxtChar == ':' || nxtChar == '.' ||
+              nxtChar == '\'')) {
+            illegalChar = true;
+            reportError(err_type::error, "Illegal char in string detected");
+          }
+          break;
+        case states::number:
+          if (std::isdigit(nxtChar) || nxtChar == '_') {
+            fullToken.push_back(nxtChar);
+          } else if (nxtChar == '.') {
+            fullToken.push_back(nxtChar);
+            state = states::decimal;
           } else {
-            out.tokenType = token_type::type_symb;
-            out.s = symb_type::symb_colon;
+            out.tokenType = token_type::type_int;
+            out.i = strToInt(fullToken);
             state = states::done;
           }
           break;
-        case states::decimal: // TODO
-          if (nxtChar == '=') {
+        case states::decimal:
+          if (std::isdigit(nxtChar) || nxtChar == '_') {
             fullToken.push_back(nxtChar);
-            out.tokenType = token_type::type_symb;
-            out.s = symb_type::symb_assign;
-            state = states::done;
-            singleton = true;
           } else {
-            out.tokenType = token_type::type_symb;
-            out.s = symb_type::symb_colon;
+            out.tokenType = token_type::type_float;
+            out.f = strToFl(fullToken);
             state = states::done;
           }
           break;
-        case states::id_key: // TODO
-          if (nxtChar == '=') {
+        case states::id_key:
+          if (isalnum(nxtChar) || nxtChar == '_') {
             fullToken.push_back(nxtChar);
-            out.tokenType = token_type::type_symb;
-            out.s = symb_type::symb_assign;
-            state = states::done;
-            singleton = true;
           } else {
-            out.tokenType = token_type::type_symb;
-            out.s = symb_type::symb_colon;
+            out.tokenType = token_type::type_id;
+            for (auto it = keywordL.begin(); it != keywordL.end(); ++it ) {
+              if (fullToken.compare(it->first) == 0) {
+                out.tokenType = token_type::type_keyword;
+                out.k = it->second;
+                break;
+              }
+            }
             state = states::done;
           }
           break;
       }
-      
-      // IF the token type ends up being some sort of identifier, compare to 
-      //   keyword list to check to see if it's a keyword
-      
-      // before moving to ending state -1, set tokenType, name, and union
-      /*struct tok {
-        token_type tokenType;
-        std::string name;
-        union {
-          int i;
-          float f;
-          symbol_type s;
-          reserved_type r;
-        };
-        int linePos;
-        int charPos;
-      };
-      */
-      
     } while (state != states::done && !fileEnd);
     
-    if (!whitespace && !singleton) {
+    if (!whitespace && !consume) {
       fs.unget();
       curChar--;
     }

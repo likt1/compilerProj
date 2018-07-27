@@ -28,29 +28,44 @@ lexer scanner;
 
 // Funcs
 // =====================================================
+std::string cleanDblQuotes(std::string str) {
+  std::string out;
+  for (size_t i = 0; i < str.size(); i++) {
+    if (str[i] != '"') {
+      out.push_back(str[i]);
+    }
+  }
+  return out;
+}
+
 void printTok(tok &token) {
-  std::cout << token.tokenType << " ";
-  std::cout << token.name << "\n";
-  std::cout << "L: " << token.linePos << "|C: " << token.charPos << "\n";
-  
-  /* TODO
-  token_type tokenType;
-  std::string name;
-  union {
-    int i;
-    float f;
-    char c;
-    symb_type s;
-    key_type r;
-  };
-  int linePos; // line of first char
-  int charPos; // loc of first char
-  */
+  std::cout << "(L: " << token.linePos << "|C: " << token.charPos << ") ";
+  std::cout << scanner.typeToString(token.tokenType) << "\t[";
+  std::cout << token.name << "]";
+  switch (token.tokenType) {
+    case type_int:
+      std::cout << "-> " << token.i;
+      break;
+    case type_float:
+      std::cout << "-> " << token.f;
+      break;
+    case type_char:
+      std::cout << "-> " << token.c;
+      break;
+    case type_symb:
+      std::cout << "-> " << scanner.symbToString(token.s);
+      break;
+  }
+  std::cout << "\n";
 }
 
 bool getTok(tok &token) {
   if (!scanner.next_tok(token)) {
     genCode = false;
+  } else {
+    if (token.tokenType == type_string) {
+      token.name = cleanDblQuotes(token.name);
+    }
   }
   if (scanner.fileEnd) { // end of file abort
     std::cout << "End of file reached";
@@ -62,7 +77,7 @@ bool getTok(tok &token) {
 // Main
 // =====================================================
 int main(int argc, const char *argv[]) {
-  std::cout << "hello world" << "\n";
+  std::cout << "Compiler start" << "\n";
   
   if (argc == 2) {
     scanner.init(argv[1], &errList);
@@ -72,6 +87,8 @@ int main(int argc, const char *argv[]) {
     while (debugCnt > 0) {
       if (getTok(token)) {
         printTok(token);
+      } else {
+        break;
       }
       debugCnt--;
     }

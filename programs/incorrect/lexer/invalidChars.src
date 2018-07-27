@@ -9,7 +9,7 @@ getBool(x);
 if(x) then
 	putChar('~'); // Invalid character
 else
-	putChar('Ffffsdd');  // Invalid definition of character
+	putChar('Ffffsdd');  // Invalid definition of character /* /* */ 
 end if;
 
 getChar(c);

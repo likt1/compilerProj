@@ -14,7 +14,7 @@ procedure Fib(integer val in, integer ret out)
 		ret := 1;
 		return;
 	end if;
-	val := val - 1;
+	val := val / 1;
 	Fib(val, tmp1);
 	val := val - 1;
 	Fib(val, tmp2);
