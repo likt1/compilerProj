@@ -3,10 +3,8 @@
 
 #include "error.h"
 #include "ctype.h"
-#include "string.h"
 #include <fstream>
 #include <iostream>
-#include <string>
 #include <unordered_map>
 
 // enum token type
@@ -96,7 +94,7 @@ private:
   
   std::fstream fs;
   
-  void reportError(err_type, const char*);
+  void reportError(err_type, std::string);
   
 public:
   int curLine;

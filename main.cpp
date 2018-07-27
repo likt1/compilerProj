@@ -68,7 +68,7 @@ bool getTok(tok &token) {
     }
   }
   if (scanner.fileEnd) { // end of file abort
-    std::cout << "End of file reached";
+    std::cout << "End of file reached\n";
     return false;
   }
   return true;
@@ -77,20 +77,13 @@ bool getTok(tok &token) {
 // Main
 // =====================================================
 int main(int argc, const char *argv[]) {
-  std::cout << "Compiler start" << "\n";
-  
   if (argc == 2) {
+    std::cout << "Compiler start " << argv[1] << "\n";
     scanner.init(argv[1], &errList);
     tok token;
     
-    int debugCnt = 50;
-    while (debugCnt > 0) {
-      if (getTok(token)) {
-        printTok(token);
-      } else {
-        break;
-      }
-      debugCnt--;
+    while (getTok(token)) {
+      printTok(token);
     }
     
     scanner.deinit();

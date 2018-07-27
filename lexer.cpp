@@ -157,10 +157,10 @@ bool lexer::deinit() {
 }
 
 //====================== Report functions ======================//
-void lexer::reportError(err_type eT, const char* msg) {
+void lexer::reportError(err_type eT, std::string msg) {
   error_obj newError;
   newError.errT = eT;
-  strcpy(newError.msg, msg);
+  newError.msg = msg;
   newError.lineNum = curLine;
   newError.charNum = curChar;
 
@@ -190,7 +190,7 @@ bool lexer::next_tok(tok &out) {
       char nxtChar;
       whitespace = false; consume = false;
       fs.get(nxtChar);
-      if (nxtChar == -1) {
+      if (fs.eof()) {
         fileEnd = true;
         nxtChar = ' ';
       } else {
@@ -209,6 +209,7 @@ bool lexer::next_tok(tok &out) {
           curLine++;
           curChar = 0;
         case '\t':
+        case '\r':
         case ' ':
           whitespace = true;
           break;
@@ -226,7 +227,11 @@ bool lexer::next_tok(tok &out) {
             nxtChar == '\'' || nxtChar == '"' || nxtChar == '_' ||
             std::isalnum(nxtChar) || whitespace) && !ignoreIllegals) {
         illegalChar = true;
-        reportError(err_type::error, "Illegal character detected");
+        std::string errString = "Illegal character ";
+        errString.append("[");
+        errString.append(std::to_string((int)nxtChar));
+        errString.append("] detected");
+        reportError(err_type::error, errString);
         nxtChar = ' ';
         whitespace = true;
       }
