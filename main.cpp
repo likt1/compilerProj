@@ -92,47 +92,50 @@ bool getTok(tok &token) {
 }
 
 //====================== Parser functions ======================//
-void p_program();
-void p_program_header();
-void p_program_body();
-void p_declaration();
-void p_parameter_list();
-void p_parameter();
-void p_procedure_body();
-void p_variable_declaration();
-void p_type_mark();
-void p_lower_bound();
-void p_upper_bound();
-void p_statement();
-void p_procedure_call();
-void p_assignment_statement();
-void p_destination();
-void p_if_statement();
-void p_loop_statement();
-void p_return_statement();
-void p_identifier();
-void p_expression();
-void p_expression_pr();
-void p_arithOp();
-void p_arithOp_pr();
-void p_relation();
-void p_relation_pr();
-void p_term();
-void p_term_pr();
-void p_factor();
-void p_name();
-void p_argument_list();
-void p_number();
-void p_string();
-void p_char();
+void p_program(bool &);
+void p_program_header(bool &);
+void p_program_body(bool &);
+void p_declaration(bool &, bool);
+void p_parameter_list(bool &);
+void p_parameter(bool &);
+void p_procedure_body(bool &);
+void p_variable_declaration(bool &);
+void p_type_mark(bool &);
+void p_lower_bound(bool &);
+void p_upper_bound(bool &);
+void p_statement(bool &, bool);
+void p_procedure_call(bool &);
+void p_assignment_statement(bool &);
+void p_destination(bool &);
+void p_if_statement(bool &);
+void p_loop_statement(bool &);
+void p_return_statement(bool &);
+void p_identifier(bool &);
+void p_expression(bool &);
+void p_expression_pr(bool &);
+void p_arithOp(bool &);
+void p_arithOp_pr(bool &);
+void p_relation(bool &);
+void p_relation_pr(bool &);
+void p_term(bool &);
+void p_term_pr(bool &);
+void p_factor(bool &);
+void p_name(bool &);
+void p_argument_list(bool &);
+void p_number(bool &);
+void p_string(bool &);
+void p_char(bool &);
 
-void p_program() {  
-  tok token;
-  p_program_header();
-  p_program_body();
-  if (getTok(token)) {
+void p_program(bool &success) {  
+  tok token; bool suc = true;
+  
+  p_program_header(suc);
+  
+  p_program_body(suc);
+  
+  if (getTok(token)) { // .
     if (!(token.tokenType == token_type::type_symb && token.s == symb_type::symb_period)) {
-      std::string errMsg = "Period missing from program parsing";
+      std::string errMsg = "Missing . from <program>";
       reportError(token, err_type::error, errMsg);
     }
   } else {
@@ -140,131 +143,212 @@ void p_program() {
   }
 }
 
-void p_program_header() {
+void p_program_header(bool &success) {
+  if (!abortFlag) {
+    tok token; bool suc = true;
+    
+    if (getTok(token)) { // program
+      if (!(token.tokenType == token_type::type_keyword && token.k == key_type::key_program)) {
+        std::string errMsg = "Missing 'program' from <program_header>";
+        reportError(token, err_type::error, errMsg);
+      }
+    } else {
+      abortFlag = true;
+    }
+    
+    p_identifier(suc);
+    
+    if (!abortFlag && getTok(token)) { // is
+      if (!(token.tokenType == token_type::type_keyword && token.k == key_type::key_is)) {
+        std::string errMsg = "Missing 'is' from <program_header>";
+        reportError(token, err_type::error, errMsg);
+      }
+    } else {
+      abortFlag = true;
+    }
+  }
+}
+
+void p_program_body(bool &success) {
+  if (!abortFlag) {
+    tok token; bool suc = true;
+    
+    bool igError = false;
+    while (suc) { // declaration repeat
+      p_declaration(suc, igError);
+      
+      if (getTok(token)) { // ;
+        if (!(token.tokenType == token_type::type_symb && token.s == symb_type::symb_semicolon)) {
+          std::string errMsg = "Missing ';' from <program_body><declaration>";
+          reportError(token, err_type::error, errMsg);
+        }
+      } else {
+        abortFlag = true;
+      }
+      igError = true;
+    }
+    
+    if (!abortFlag && getTok(token)) { // begin
+      if (!(token.tokenType == token_type::type_keyword && token.k == key_type::key_begin)) {
+        std::string errMsg = "Missing 'begin' from <program_body>";
+        reportError(token, err_type::error, errMsg);
+      }
+    } else {
+      abortFlag = true;
+    }
+    
+    igError = false;
+    while (suc) { // statement repeat
+      p_statement(suc, igError);
+      
+      if (getTok(token)) { // ;
+        if (!(token.tokenType == token_type::type_symb && token.s == symb_type::symb_semicolon)) {
+          std::string errMsg = "Missing ';' from <program_body><declaration>";
+          reportError(token, err_type::error, errMsg);
+        }
+      } else {
+        abortFlag = true;
+      }
+      igError = true;
+    }
+    
+    if (!abortFlag && getTok(token)) { // end
+      if (!(token.tokenType == token_type::type_keyword && token.k == key_type::key_end)) {
+        std::string errMsg = "Missing 'end' from <program_body>";
+        reportError(token, err_type::error, errMsg);
+      }
+    } else {
+      abortFlag = true;
+    }
+    
+    if (!abortFlag && getTok(token)) { // program
+      if (!(token.tokenType == token_type::type_keyword && token.k == key_type::key_program)) {
+        std::string errMsg = "Missing 'program' from <program_body>";
+        reportError(token, err_type::error, errMsg);
+      }
+    } else {
+      abortFlag = true;
+    }
+  }
+}
+
+void p_declaration(bool &success, bool suppressE) {
   
 }
 
-void p_program_body() {
+void p_parameter_list(bool &success) {
   
 }
 
-void p_declaration() {
+void p_parameter(bool &success) {
   
 }
 
-void p_parameter_list() {
+void p_procedure_body(bool &success) {
   
 }
 
-void p_parameter() {
+void p_variable_declaration(bool &success) {
   
 }
 
-void p_procedure_body() {
+void p_type_mark(bool &success) {
   
 }
 
-void p_variable_declaration() {
+void p_lower_bound(bool &success) {
   
 }
 
-void p_type_mark() {
+void p_upper_bound(bool &success) {
   
 }
 
-void p_lower_bound() {
+void p_statement(bool &success, bool suppressE) {
   
 }
 
-void p_upper_bound() {
+void p_procedure_call(bool &success) {
   
 }
 
-void p_statement() {
+void p_assignment_statement(bool &success) {
   
 }
 
-void p_procedure_call() {
+void p_destination(bool &success) {
   
 }
 
-void p_assignment_statement() {
+void p_if_statement(bool &success) {
   
 }
 
-void p_destination() {
+void p_loop_statement(bool &success) {
   
 }
 
-void p_if_statement() {
+void p_return_statement(bool &success) {
   
 }
 
-void p_loop_statement() {
+void p_identifier(bool &success) {
   
 }
 
-void p_return_statement() {
+void p_expression(bool &success) {
   
 }
 
-void p_identifier() {
+void p_expression_pr(bool &success) {
   
 }
 
-void p_expression() {
+void p_arithOp(bool &success) {
   
 }
 
-void p_expression_pr() {
+void p_arithOp_pr(bool &success) {
   
 }
 
-void p_arithOp() {
+void p_relation(bool &success) {
   
 }
 
-void p_arithOp_pr() {
+void p_relation_pr(bool &success) {
   
 }
 
-void p_relation() {
+void p_term(bool &success) {
   
 }
 
-void p_relation_pr() {
+void p_term_pr(bool &success) {
   
 }
 
-void p_term() {
+void p_factor(bool &success) {
   
 }
 
-void p_term_pr() {
+void p_name(bool &success) {
   
 }
 
-void p_factor() {
+void p_argument_list(bool &success) {
   
 }
 
-void p_name() {
+void p_number(bool &success) {
   
 }
 
-void p_argument_list() {
+void p_string(bool &success) {
   
 }
 
-void p_number() {
-  
-}
-
-void p_string() {
-  
-}
-
-void p_char() {
+void p_char(bool &success) {
   
 }
 
@@ -273,18 +357,19 @@ int main(int argc, const char *argv[]) {
   if (argc == 2) {
     std::cout << "Compiler start " << argv[1] << "\n";
     scanner.init(argv[1], &errList);
+    bool suc = true;
     
     
     // begin parsing
-    p_program();
+    p_program(suc);
     
-    // DEBUG
+    /* DEBUG
     tok token;
     
     while (getTok(token)) {
       printTok(token);
     }
-    //
+    */
     
     scanner.deinit();
   } else {
