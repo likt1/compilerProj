@@ -5,6 +5,7 @@
 
 #include <stack>
 
+#define DEBUG_FLAG false
 #define symbol_table std::unordered_map<const char*, token_type>
 // define a symbol table list to work with scoping?
 // we will always need a local scope and global scope, while there is a block
@@ -102,6 +103,7 @@ bool getTok(tok &token) {
     abortFlag = true;
     return false;
   }
+  printTok(token);
   return true;
 }
 
@@ -109,7 +111,7 @@ bool a_getTok(tok &token) {
   return !abortFlag && getTok(token);
 }
 
-bool check_crit(tok &token, token_type type, int sec_type) {
+bool check(tok &token, token_type type, int sec_type) {
   int tokenSecondary;
   switch (type) {
     case type_symb:
@@ -151,7 +153,7 @@ void p_program(bool &success) {
   p_program_body(suc); // unused suc
   
   if (a_getTok(token)) { // .
-    if (!check_crit(token, token_type::type_symb, symb_type::symb_period)) {
+    if (!check(token, token_type::type_symb, symb_type::symb_period)) {
       std::string errMsg = "Unknown token after <program>";
       reportError(token, err_type::error, errMsg);
     }
@@ -165,7 +167,7 @@ void p_program_header(bool &success) {
   tok token; bool suc = true;
   
   if (getTok(token) && // program
-      !check_crit(token, token_type::type_keyword, key_type::key_program)) {
+      !check(token, token_type::type_keyword, key_type::key_program)) {
     std::string errMsg = "Missing 'program' from <program_header>";
     reportError(token, err_type::error, errMsg);
     eat_misspelling(token);
@@ -178,7 +180,7 @@ void p_program_header(bool &success) {
   }
   
   if (a_getTok(token) && // is
-      !check_crit(token, token_type::type_keyword, key_type::key_is)) {
+      !check(token, token_type::type_keyword, key_type::key_is)) {
     std::string errMsg = "Missing 'is' from <program_header>";
     reportError(token, err_type::error, errMsg);
     eat_misspelling(token);
@@ -194,7 +196,7 @@ void p_program_body(bool &success) {
       p_declaration(suc, exists); // unused suc
       
       if (exists && a_getTok(token) && // ;
-          !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+          !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
         std::string errMsg = "Missing ';' from <program_body><declaration>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -202,7 +204,7 @@ void p_program_body(bool &success) {
     } while (exists && !abortFlag);
     
     if (a_getTok(token) && // begin
-        !check_crit(token, token_type::type_keyword, key_type::key_begin)) {
+        !check(token, token_type::type_keyword, key_type::key_begin)) {
       std::string errMsg = "Missing 'begin' from <program_body>";
       reportError(token, err_type::error, errMsg);
       //eat_misspelling(token); // statements after begin can start with an identifier
@@ -213,7 +215,7 @@ void p_program_body(bool &success) {
       p_statement(suc, exists); // unused suc
       
       if (exists && a_getTok(token) && // ;
-          !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+          !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
         std::string errMsg = "Missing ';' from <program_body><statement>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -221,14 +223,14 @@ void p_program_body(bool &success) {
     } while (exists && !abortFlag);
     
     if (a_getTok(token) && // end
-        !check_crit(token, token_type::type_keyword, key_type::key_end)) {
+        !check(token, token_type::type_keyword, key_type::key_end)) {
       std::string errMsg = "Missing 'end' from <program_body>";
       reportError(token, err_type::error, errMsg);
       eat_misspelling(token);
     }
     
     if (a_getTok(token) && // program
-        !check_crit(token, token_type::type_keyword, key_type::key_program)) {
+        !check(token, token_type::type_keyword, key_type::key_program)) {
       std::string errMsg = "Missing 'program' from <program_body>";
       reportError(token, err_type::error, errMsg);
       eat_misspelling(token);
@@ -241,8 +243,8 @@ void p_declaration(bool &success, bool &exists) {
     tok token; bool suc = true;
     
     bool global_obj = false;
-    if (getTok(token)) { // opt: global TODO update to crit_check
-      if (token.tokenType == token_type::type_keyword && token.k == key_type::key_global) {
+    if (getTok(token)) { // opt: global
+      if (check(token, token_type::type_keyword, key_type::key_global)) {
         global_obj = true;
       } else { // backtrack
         scanner.undo();
@@ -281,7 +283,7 @@ void p_procedure_header(bool &success, bool &exists) {
     
     exists = true;
     if (getTok(token) && // procedure exists?
-        !check_crit(token, token_type::type_keyword, key_type::key_procedure)) {
+        !check(token, token_type::type_keyword, key_type::key_procedure)) {
       exists = false;
       scanner.undo();
       //std::string errMsg = "Missing 'procedure' from <procedure_header>";
@@ -296,7 +298,7 @@ void p_procedure_header(bool &success, bool &exists) {
       }
       
       if (a_getTok(token) && // (
-          !check_crit(token, token_type::type_symb, symb_type::symb_op_paren)) {
+          !check(token, token_type::type_symb, symb_type::symb_op_paren)) {
         std::string errMsg = "Missing '(' from <procedure_header>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -309,7 +311,7 @@ void p_procedure_header(bool &success, bool &exists) {
       } 
       
       if (a_getTok(token) && // )
-          !check_crit(token, token_type::type_symb, symb_type::symb_cl_paren)) {
+          !check(token, token_type::type_symb, symb_type::symb_cl_paren)) {
         std::string errMsg = "Missing ')' from <procedure_header>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -327,7 +329,7 @@ void p_parameter_list(bool &success, bool &exists) {
     
     if (exists) {
       tok lookahead; peekTok(lookahead); // ,
-      if (check_crit(lookahead, token_type::type_symb, symb_type::symb_comma)) {
+      if (check(lookahead, token_type::type_symb, symb_type::symb_comma)) {
         getTok(token);
         p_parameter_list(suc, exists);
       } else {
@@ -356,11 +358,11 @@ void p_parameter(bool &success, bool &exists) {
     p_variable_declaration(suc, exists);
     
     if (exists && a_getTok(token)) { // in/out/inout
-      if (check_crit(token, token_type::type_keyword, key_type::key_in)) {
+      if (check(token, token_type::type_keyword, key_type::key_in)) {
         // define in
-      } else if (check_crit(token, token_type::type_keyword, key_type::key_out)) {
+      } else if (check(token, token_type::type_keyword, key_type::key_out)) {
         // define out
-      } else if (check_crit(token, token_type::type_keyword, key_type::key_inout)) {
+      } else if (check(token, token_type::type_keyword, key_type::key_inout)) {
         // define inout
       } else {
         std::string errMsg = "Missing 'in/out/inout' from <parameter>";
@@ -380,7 +382,7 @@ void p_procedure_body(bool &success) {
       p_declaration(suc, exists); // unused suc
       
       if (exists && a_getTok(token) && // ;
-          !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+          !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
         std::string errMsg = "Missing ';' from <procedure_body><declaration>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -388,7 +390,7 @@ void p_procedure_body(bool &success) {
     } while (exists && !abortFlag);
     
     if (a_getTok(token) && // begin
-        !check_crit(token, token_type::type_keyword, key_type::key_begin)) {
+        !check(token, token_type::type_keyword, key_type::key_begin)) {
       std::string errMsg = "Missing 'begin' from <procedure_body>";
       reportError(token, err_type::error, errMsg);
       //eat_misspelling(token);
@@ -399,7 +401,7 @@ void p_procedure_body(bool &success) {
       p_statement(suc, exists); // unused suc
       
       if (exists && a_getTok(token) && // ;
-          !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+          !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
         std::string errMsg = "Missing ';' from <procedure_body><statement>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -407,14 +409,14 @@ void p_procedure_body(bool &success) {
     } while (exists && !abortFlag);
      
     if (a_getTok(token) && // end
-        !check_crit(token, token_type::type_keyword, key_type::key_end)) {
+        !check(token, token_type::type_keyword, key_type::key_end)) {
       std::string errMsg = "Missing 'end' from <procedure_body>";
       reportError(token, err_type::error, errMsg);
       eat_misspelling(token);
     }
     
     if (a_getTok(token) && // procedure
-        !check_crit(token, token_type::type_keyword, key_type::key_procedure)) {
+        !check(token, token_type::type_keyword, key_type::key_procedure)) {
       std::string errMsg = "Missing 'procedure' from <procedure_body>";
       reportError(token, err_type::error, errMsg);
       eat_misspelling(token);
@@ -437,7 +439,7 @@ void p_variable_declaration(bool &success, bool &exists) {
       
       bool array = false;
       if (a_getTok(token)) { // optional [
-        if (check_crit(token, token_type::type_symb, symb_type::symb_op_bracket)) {
+        if (check(token, token_type::type_symb, symb_type::symb_op_bracket)) {
           array = true;
         } else {
           scanner.undo();
@@ -448,7 +450,7 @@ void p_variable_declaration(bool &success, bool &exists) {
         p_lower_bound(suc);
         
         if (a_getTok(token) && // :
-            !check_crit(token, token_type::type_symb, symb_type::symb_colon)) {
+            !check(token, token_type::type_symb, symb_type::symb_colon)) {
           std::string errMsg = "Missing ':' from <variable_declaration>";
           reportError(token, err_type::error, errMsg);
           scanner.undo();
@@ -457,7 +459,7 @@ void p_variable_declaration(bool &success, bool &exists) {
         p_upper_bound(suc);
         
         if (a_getTok(token) && // ]
-            !check_crit(token, token_type::type_symb, symb_type::symb_cl_bracket)) {
+            !check(token, token_type::type_symb, symb_type::symb_cl_bracket)) {
           std::string errMsg = "Missing ']' from <variable_declaration>";
           reportError(token, err_type::error, errMsg);
           scanner.undo();
@@ -473,15 +475,15 @@ void p_type_mark(bool &success, bool &exists) {
     
     exists = true;
     if (a_getTok(token)) { // refer to type_mark in specification
-      if (check_crit(token, token_type::type_keyword, key_type::key_integer)) {
+      if (check(token, token_type::type_keyword, key_type::key_integer)) {
         // integer
-      } else if(check_crit(token, token_type::type_keyword, key_type::key_float)) {
+      } else if(check(token, token_type::type_keyword, key_type::key_float)) {
         // float
-      } else if(check_crit(token, token_type::type_keyword, key_type::key_string)) {
+      } else if(check(token, token_type::type_keyword, key_type::key_string)) {
         // string
-      } else if(check_crit(token, token_type::type_keyword, key_type::key_bool)) {
+      } else if(check(token, token_type::type_keyword, key_type::key_bool)) {
         // bool
-      } else if(check_crit(token, token_type::type_keyword, key_type::key_char)) {
+      } else if(check(token, token_type::type_keyword, key_type::key_char)) {
         // char
       } else {
         scanner.undo();
@@ -497,7 +499,7 @@ void p_lower_bound(bool &success) {
     
     bool neg = false;
     if (a_getTok(token)) { // optional -
-      if (check_crit(token, token_type::type_symb, symb_type::symb_minus)) {
+      if (check(token, token_type::type_symb, symb_type::symb_minus)) {
         neg = true;
       } else {
         scanner.undo();
@@ -518,7 +520,7 @@ void p_upper_bound(bool &success) {
     
     bool neg = false;
     if (a_getTok(token)) { // optional -
-      if (check_crit(token, token_type::type_symb, symb_type::symb_minus)) {
+      if (check(token, token_type::type_symb, symb_type::symb_minus)) {
         neg = true;
       } else {
         scanner.undo();
@@ -561,7 +563,7 @@ void p_procedure_call(bool &success, bool &exists) {
     
     if (exists) {
       if (a_getTok(token) && // (
-          !check_crit(token, token_type::type_symb, symb_type::symb_op_paren)) {
+          !check(token, token_type::type_symb, symb_type::symb_op_paren)) {
         std::string errMsg = "Missing '(' from <procedure_call>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -574,7 +576,7 @@ void p_procedure_call(bool &success, bool &exists) {
       }
       
       if (a_getTok(token) && // )
-          !check_crit(token, token_type::type_symb, symb_type::symb_cl_paren)) {
+          !check(token, token_type::type_symb, symb_type::symb_cl_paren)) {
         std::string errMsg = "Missing ')' from <procedure_call>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -591,9 +593,9 @@ void p_assignment_statement(bool &success, bool &exists) {
     
     if (exists) {
       tok lookahead; peekTok(lookahead); // check = or :=
-      if (check_crit(lookahead, token_type::type_symb, symb_type::symb_assign)) {
+      if (check(lookahead, token_type::type_symb, symb_type::symb_assign)) {
         getTok(token);
-      } else if (check_crit(lookahead, token_type::type_illegal, ill_type::ill_equals)) {
+      } else if (check(lookahead, token_type::type_illegal, ill_type::ill_equals)) {
         std::string errMsg = "Malformed '!=' from <assignment_statement>";
         reportError(token, err_type::error, errMsg);
       } else {
@@ -620,7 +622,7 @@ void p_destination(bool &success, bool &exists) {
     if (exists) {
       bool array = false;
       if (a_getTok(token)) { // optional [
-        if (check_crit(token, token_type::type_symb, symb_type::symb_op_bracket)) {
+        if (check(token, token_type::type_symb, symb_type::symb_op_bracket)) {
           array = true;
         } else {
           scanner.undo();
@@ -635,7 +637,7 @@ void p_destination(bool &success, bool &exists) {
         }
         
         if (a_getTok(token) && // ]
-            !check_crit(token, token_type::type_symb, symb_type::symb_cl_bracket)) {
+            !check(token, token_type::type_symb, symb_type::symb_cl_bracket)) {
           std::string errMsg = "Missing ']' from <destination>";
           reportError(token, err_type::error, errMsg);
           scanner.undo();
@@ -651,7 +653,7 @@ void p_if_statement(bool &success, bool &exists) {
     
     exists = true;
     if (a_getTok(token) && // if
-        !check_crit(token, token_type::type_keyword, key_type::key_if)) {
+        !check(token, token_type::type_keyword, key_type::key_if)) {
       exists = false;
       scanner.undo();
       //std::string errMsg = "Missing '(' from <procedure_call>";
@@ -660,7 +662,7 @@ void p_if_statement(bool &success, bool &exists) {
     
     if (exists) {
       if (a_getTok(token) && // (
-          !check_crit(token, token_type::type_symb, symb_type::symb_op_paren)) {
+          !check(token, token_type::type_symb, symb_type::symb_op_paren)) {
         std::string errMsg = "Missing '(' from <if_statement>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -673,14 +675,14 @@ void p_if_statement(bool &success, bool &exists) {
       }
       
       if (a_getTok(token) && // )
-          !check_crit(token, token_type::type_symb, symb_type::symb_cl_paren)) {
+          !check(token, token_type::type_symb, symb_type::symb_cl_paren)) {
         std::string errMsg = "Missing ')' from <if_statement>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
       }
       
       if (a_getTok(token) && // then
-          !check_crit(token, token_type::type_keyword, key_type::key_then)) {
+          !check(token, token_type::type_keyword, key_type::key_then)) {
         std::string errMsg = "Missing 'then' from <if_statement>";
         reportError(token, err_type::error, errMsg);
         //eat_misspelling(token); // statements after then can start with an identifier
@@ -694,7 +696,7 @@ void p_if_statement(bool &success, bool &exists) {
       }
         
       if (exists && a_getTok(token) && // ;
-          !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+          !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
         std::string errMsg = "Missing ';' from <if_statement><then><statement>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -704,7 +706,7 @@ void p_if_statement(bool &success, bool &exists) {
         p_statement(suc, exists); // unused suc
         
         if (exists && a_getTok(token) && // ;
-            !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+            !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
           std::string errMsg = "Missing ';' from <if_statement><then><statement>";
           reportError(token, err_type::error, errMsg);
           scanner.undo();
@@ -713,7 +715,7 @@ void p_if_statement(bool &success, bool &exists) {
       
       bool elseFlag = false;
       if (a_getTok(token)) { // opt: else
-        if (check_crit(token, token_type::type_keyword, key_type::key_else)) {
+        if (check(token, token_type::type_keyword, key_type::key_else)) {
           elseFlag = true;
         } else {
           scanner.undo();
@@ -728,7 +730,7 @@ void p_if_statement(bool &success, bool &exists) {
         }
           
         if (exists && a_getTok(token) && // ;
-            !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+            !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
           std::string errMsg = "Missing ';' from <if_statement><else><statement>";
           reportError(token, err_type::error, errMsg);
           scanner.undo();
@@ -738,7 +740,7 @@ void p_if_statement(bool &success, bool &exists) {
           p_statement(suc, exists); // unused suc
           
           if (exists && a_getTok(token) && // ;
-              !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+              !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
             std::string errMsg = "Missing ';' from <if_statement><else><statement>";
             reportError(token, err_type::error, errMsg);
             scanner.undo();
@@ -747,14 +749,14 @@ void p_if_statement(bool &success, bool &exists) {
       }
       
       if (a_getTok(token) && // end
-          !check_crit(token, token_type::type_keyword, key_type::key_end)) {
+          !check(token, token_type::type_keyword, key_type::key_end)) {
         std::string errMsg = "Missing 'end' from <if_statement>";
         reportError(token, err_type::error, errMsg);
         eat_misspelling(token);
       }
       
       if (a_getTok(token) && // if
-          !check_crit(token, token_type::type_keyword, key_type::key_if)) {
+          !check(token, token_type::type_keyword, key_type::key_if)) {
         std::string errMsg = "Missing 'if' from <if_statement><end>";
         reportError(token, err_type::error, errMsg);
         eat_misspelling(token); // statements after end if can start with an identifier
@@ -770,7 +772,7 @@ void p_loop_statement(bool &success, bool &exists) {
     
     exists = true;
     if (a_getTok(token) && // for
-        !check_crit(token, token_type::type_keyword, key_type::key_for)) {
+        !check(token, token_type::type_keyword, key_type::key_for)) {
       exists = false;
       scanner.undo();
       //std::string errMsg = "Missing '(' from <procedure_call>";
@@ -779,7 +781,7 @@ void p_loop_statement(bool &success, bool &exists) {
     
     if (exists) {
       if (a_getTok(token) && // (
-          !check_crit(token, token_type::type_symb, symb_type::symb_op_paren)) {
+          !check(token, token_type::type_symb, symb_type::symb_op_paren)) {
         std::string errMsg = "Missing '(' from <loop_statement>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -792,7 +794,7 @@ void p_loop_statement(bool &success, bool &exists) {
       }
       
       if (a_getTok(token) && // ;
-          !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+          !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
         std::string errMsg = "Missing ';' from <loop_statement>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -805,7 +807,7 @@ void p_loop_statement(bool &success, bool &exists) {
       }
       
       if (a_getTok(token) && // )
-          !check_crit(token, token_type::type_symb, symb_type::symb_cl_paren)) {
+          !check(token, token_type::type_symb, symb_type::symb_cl_paren)) {
         std::string errMsg = "Missing ')' from <loop_statement>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -818,7 +820,7 @@ void p_loop_statement(bool &success, bool &exists) {
       }
         
       if (exists && a_getTok(token) && // ;
-          !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+          !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
         std::string errMsg = "Missing ';' from <loop_statement><statement>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -828,7 +830,7 @@ void p_loop_statement(bool &success, bool &exists) {
         p_statement(suc, exists); // unused suc
         
         if (exists && a_getTok(token) && // ;
-            !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+            !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
           std::string errMsg = "Missing ';' from <loop_statement><statement>";
           reportError(token, err_type::error, errMsg);
           scanner.undo();
@@ -836,14 +838,14 @@ void p_loop_statement(bool &success, bool &exists) {
       }
       
       if (a_getTok(token) && // end
-          !check_crit(token, token_type::type_keyword, key_type::key_end)) {
+          !check(token, token_type::type_keyword, key_type::key_end)) {
         std::string errMsg = "Missing 'end' from <if_statement>";
         reportError(token, err_type::error, errMsg);
         eat_misspelling(token);
       }
       
       if (a_getTok(token) && // for
-          !check_crit(token, token_type::type_keyword, key_type::key_for)) {
+          !check(token, token_type::type_keyword, key_type::key_for)) {
         std::string errMsg = "Missing 'for' from <if_statement><end>";
         reportError(token, err_type::error, errMsg);
         //eat_misspelling(token); // statements after end for can start with an identifier
@@ -859,7 +861,7 @@ void p_return_statement(bool &success, bool &exists) {
     
     exists = true;
     if (a_getTok(token) && // return
-        !check_crit(token, token_type::type_keyword, key_type::key_return)) {
+        !check(token, token_type::type_keyword, key_type::key_return)) {
       exists = false;
       scanner.undo();
     }
@@ -885,7 +887,7 @@ void p_expression(bool &success, bool &exists) {
     
     bool notFlag = false;
     if (a_getTok(token)) { // opt: not
-      if (check_crit(token, token_type::type_keyword, key_type::key_not)) {
+      if (check(token, token_type::type_keyword, key_type::key_not)) {
         notFlag = true;
       } else {
         scanner.undo();
@@ -902,11 +904,11 @@ void p_expression_pr(bool &success, bool &exists) {
     tok token; bool suc = true;
     
     if (a_getTok(token)) { // & or | and if neither exist backtrack
-      if (check_crit(token, token_type::type_symb, symb_type::symb_amper)) {
+      if (check(token, token_type::type_symb, symb_type::symb_amper)) {
         // handle ampersand
         p_arithOp(suc, exists);
         p_expression_pr(suc, exists);
-      } else if (check_crit(token, token_type::type_symb, symb_type::symb_straight)) {
+      } else if (check(token, token_type::type_symb, symb_type::symb_straight)) {
         // handle straight
         p_arithOp(suc, exists);
         p_expression_pr(suc, exists);
@@ -931,11 +933,11 @@ void p_arithOp_pr(bool &success, bool &exists) {
     tok token; bool suc = true;
     
     if (a_getTok(token)) { // + or - and if neither exist backtrack
-      if (check_crit(token, token_type::type_symb, symb_type::symb_plus)) {
+      if (check(token, token_type::type_symb, symb_type::symb_plus)) {
         // handle plus
         p_relation(suc, exists);
         p_arithOp_pr(suc, exists);
-      } else if (check_crit(token, token_type::type_symb, symb_type::symb_minus)) {
+      } else if (check(token, token_type::type_symb, symb_type::symb_minus)) {
         // handle minus
         p_relation(suc, exists);
         p_arithOp_pr(suc, exists);
@@ -960,27 +962,27 @@ void p_relation_pr(bool &success, bool &exists) {
     tok token; bool suc = true;
     
     if (a_getTok(token)) { // <|>=|<=|>|==|!= and if none exist backtrack
-      if (check_crit(token, token_type::type_symb, symb_type::symb_smaller)) {
+      if (check(token, token_type::type_symb, symb_type::symb_smaller)) {
         // handle smaller than
         p_term(suc, exists);
         p_relation_pr(suc, exists);
-      } else if (check_crit(token, token_type::type_symb, symb_type::symb_greater_eq)) {
+      } else if (check(token, token_type::type_symb, symb_type::symb_greater_eq)) {
         // handle greater than or equals
         p_term(suc, exists);
         p_relation_pr(suc, exists);
-      } else if (check_crit(token, token_type::type_symb, symb_type::symb_smaller_eq)) {
+      } else if (check(token, token_type::type_symb, symb_type::symb_smaller_eq)) {
         // handle smaller than or equals
         p_term(suc, exists);
         p_relation_pr(suc, exists);
-      } else if (check_crit(token, token_type::type_symb, symb_type::symb_greater)) {
+      } else if (check(token, token_type::type_symb, symb_type::symb_greater)) {
         // handle grater than
         p_term(suc, exists);
         p_relation_pr(suc, exists);
-      } else if (check_crit(token, token_type::type_symb, symb_type::symb_equals)) {
+      } else if (check(token, token_type::type_symb, symb_type::symb_equals)) {
         // handle equals
         p_term(suc, exists);
         p_relation_pr(suc, exists);
-      } else if (check_crit(token, token_type::type_symb, symb_type::symb_not_equals)) {
+      } else if (check(token, token_type::type_symb, symb_type::symb_not_equals)) {
         // handle not equals
         p_term(suc, exists);
         p_relation_pr(suc, exists);
@@ -1005,11 +1007,11 @@ void p_term_pr(bool &success, bool &exists) {
     tok token; bool suc = true;
     
     if (a_getTok(token)) { // * or / and if neither exist backtrack
-      if (check_crit(token, token_type::type_symb, symb_type::symb_multi)) {
+      if (check(token, token_type::type_symb, symb_type::symb_multi)) {
         // handle multiply
         p_factor(suc, exists);
         p_term_pr(suc, exists);
-      } else if (check_crit(token, token_type::type_symb, symb_type::symb_div)) {
+      } else if (check(token, token_type::type_symb, symb_type::symb_div)) {
         // handle divide
         p_factor(suc, exists);
         p_term_pr(suc, exists);
@@ -1026,7 +1028,7 @@ void p_factor(bool &success, bool &exists) {
     
     exists = false;
     if (a_getTok(token)) { // ( if not backtrack
-      if (check_crit(token, token_type::type_symb, symb_type::symb_op_paren)) {
+      if (check(token, token_type::type_symb, symb_type::symb_op_paren)) {
         // handle expression
         exists = true;
       } else {
@@ -1042,7 +1044,7 @@ void p_factor(bool &success, bool &exists) {
       }
       
       if (a_getTok(token) && // )
-          !check_crit(token, token_type::type_symb, symb_type::symb_cl_paren)) {
+          !check(token, token_type::type_symb, symb_type::symb_cl_paren)) {
         std::string errMsg = "Missing ')' from <factor><expression>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
@@ -1050,7 +1052,7 @@ void p_factor(bool &success, bool &exists) {
     } else {
       bool neg = false;
       if (a_getTok(token)) { // - if not backtrack
-        if (check_crit(token, token_type::type_symb, symb_type::symb_op_paren)) {
+        if (check(token, token_type::type_symb, symb_type::symb_op_paren)) {
           // handle negative
           neg = true;
         } else {
@@ -1078,7 +1080,7 @@ void p_factor(bool &success, bool &exists) {
       }
       if (!exists) {
         if (a_getTok(token)) { // true or false and if neither exist backtrack
-          if (check_crit(token, token_type::type_keyword, key_type::key_true)) {
+          if (check(token, token_type::type_keyword, key_type::key_true)) {
             exists = true;
             if (neg) {
               std::string errMsg = "Invalid - for true from <factor>";
@@ -1086,7 +1088,7 @@ void p_factor(bool &success, bool &exists) {
             } else {
               // handle true
             }
-          } else if (check_crit(token, token_type::type_keyword, key_type::key_false)) {
+          } else if (check(token, token_type::type_keyword, key_type::key_false)) {
             exists = true;
             if (neg) {
               std::string errMsg = "Invalid - for false from <factor>";
@@ -1122,7 +1124,7 @@ void p_argument_list(bool &success, bool &exists) {
     
     if (exists) {
       tok lookahead; peekTok(lookahead); // ,
-      if (check_crit(lookahead, token_type::type_symb, symb_type::symb_comma)) {
+      if (check(lookahead, token_type::type_symb, symb_type::symb_comma)) {
         getTok(token);
         p_argument_list(suc, exists);
       } else {
@@ -1195,17 +1197,15 @@ int main(int argc, const char *argv[]) {
     scanner.init(argv[1], &errList);
     bool suc = true;
     
+    if (!DEBUG_FLAG) {
+      p_program(suc);
+    } else {
+      tok token;
     
-    // begin parsing
-    //p_program(suc);
-    
-    // DEBUG
-    tok token;
-    
-    while (getTok(token)) {
-      printTok(token);
+      while (getTok(token)) {
+        printTok(token);
+      }
     }
-    //
     
     scanner.deinit();
   } else {

@@ -530,7 +530,7 @@ bool lexer::next_tok(tok &out) {
   tokCursor++;
   
   if (backtracking && tokCursor == tokMem.size()) {
-    backtracking == false;
+    backtracking = false;
     curLine = storedLine;
     curChar = storedChar;
   }
