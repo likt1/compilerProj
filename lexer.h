@@ -2,6 +2,8 @@
 #define LEXER_H
 
 #include "error.h"
+#include "ctype.h"
+#include "string.h"
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -55,13 +57,14 @@ private:
   
   std::fstream fs;
   
-  void reportError(err_type, char*);
+  void reportError(err_type, const char*);
 
 public:
   int curLine;
   int curChar;
   
   bool backtracking;
+  bool fileEnd;
   int storedLine;
   int storedChar;
 
@@ -83,7 +86,7 @@ public:
   //   Sets tokCursor, curLine, curChar to 0
   // Returns
   //   Success/fail.
-  bool init(char*, error_list*);
+  bool init(const char*, error_list*);
   
   // Closes the file
   bool deinit();

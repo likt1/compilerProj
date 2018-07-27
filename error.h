@@ -13,7 +13,7 @@ enum err_type {
 // defines error obj
 struct error_obj {
   err_type errT;
-  char* msg;
+  char msg[255];
   int lineNum;
   int charNum;
 };

@@ -1,6 +1,5 @@
 #include "lexer.h"
 
-
 //====================== Init functions ======================//
 lexer::lexer() {
 }
@@ -8,7 +7,7 @@ lexer::lexer() {
 lexer::~lexer() {
 }
 
-bool lexer::init(char* fn, error_list* el) {
+bool lexer::init(const char* fn, error_list* el) {
   errL = el;
   fs.open(fn, std::fstream::in);
   
@@ -16,6 +15,7 @@ bool lexer::init(char* fn, error_list* el) {
   storedLine = 0; storedChar = 0;
   tokCursor = 0;
   backtracking = false;
+  fileEnd = false;
   
   // TODO populate globalT with reserved words
   keywordL.insert({"if", keyword_type::res_if});
@@ -29,10 +29,10 @@ bool lexer::deinit() {
   return true;
 }
   
-void lexer::reportError(err_type eT, char* msg) {
+void lexer::reportError(err_type eT, const char* msg) {
   error_obj newError;
   newError.errT = eT;
-  newError.msg = msg;
+  strcpy(newError.msg, msg);
   newError.lineNum = curLine;
   newError.charNum = curChar;
 
@@ -45,7 +45,7 @@ void lexer::reportError(err_type eT, char* msg) {
 }
 
 bool lexer::next_tok(tok &out) {
-  bool good = true;
+  bool illegalChar = false;
   if (backtracking) {
     // grab next tokMem (since cursor is 1 ahead, grab the current tok)
     out = tokMem.at(tokCursor);
@@ -55,16 +55,27 @@ bool lexer::next_tok(tok &out) {
   }
   else {
     int state = 0;
-    bool fileComplete = false;
     bool whitespace = false;
     std::string fullToken;
     do {
       char nxtChar;
+      int commentLevel = 0;
       if (!fs.get(nxtChar)) {
-        fileComplete = true;
-        whitespace = true;
+        fileEnd = true;
+        nxtChar = ' ';
+      } else {
+        nxtChar = std::tolower(nxtChar);
       }
       curChar++;
+      
+      bool useIllegals = true; // TODO temporary use illegals
+      // check illegal character (not a legal character) TODO
+      if (!(nxtChar == '/' || nxtChar == '\\' || nxtChar == ';' ||
+            std::isalnum(nxtChar)) && !useIllegals) {
+        illegalChar = true;
+        reportError(err_type::error, "Illegal character detected");
+        nxtChar = ' ';
+      }
       
       switch (nxtChar) {
         case '\n':
@@ -73,27 +84,67 @@ bool lexer::next_tok(tok &out) {
         case '\t':
         case ' ':
           whitespace = true;
-          break;
-        case '|': // illegal characters TODO
-          whitespace = true;
-          good = false;
-          break;
       }
       
       // TODO state machine to gen tokens
-      // case statement for states
+      char peeky;
       switch (state) {
         case 0: // nothing's happened yet
-          // if nxtChar is something
-          // fullToken.append(nxtChar);
-          // set state depending on nxtChar (switch on nxtChar)
-          // out.linePos = curLine;
-          // out.charPos = curChar;
+          if (!whitespace) { // if nxtChar is something
+            fullToken.push_back(nxtChar);
+            out.linePos = curLine;
+            out.charPos = curChar;
+            switch (nxtChar) { // set state depending on nxtChar
+              case '/':
+                state = 1;
+            }
+            state = -1; // TODO testing temporary only, just grab chars
+          }
           break;
-        case 1:
-          
+        case 1: // comment start or divide
+            switch (nxtChar) {
+              case '*':
+                commentLevel++;
+              case '/':
+                fullToken.clear();
+                state = 2;
+                break;
+              default: // actually a divide
+                out.tokenType = token_type::symbol;
+                out.s = symbol_type::divider;
+                state = -1;
+            }
           break;
-        case 2:
+        case 2: // in comment block
+          switch (nxtChar) {
+            case '\n':
+              if (commentLevel == 0) {
+                state = 0;
+              }
+              break;
+            case '/':
+              peeky = fs.peek();
+              if (peeky == '*') {
+                commentLevel++;
+                fs.get(nxtChar);
+                curChar++;
+              }
+              break;
+            case '*':
+              if (commentLevel > 0) {
+                peeky = fs.peek();
+                if (peeky == '/') {
+                  commentLevel--;
+                  fs.get(nxtChar);
+                  curChar++;
+                  if (commentLevel == 0) {
+                    state = 0;
+                  }
+                }
+              }
+          }
+          break;
+        case 3:
           break;
       }
       
@@ -115,7 +166,7 @@ bool lexer::next_tok(tok &out) {
       };
       */
       
-    } while (state != -1);
+    } while (state != -1 && !fileEnd);
     
     if (!whitespace) {
       fs.unget();
@@ -123,7 +174,7 @@ bool lexer::next_tok(tok &out) {
     }
     
     // done
-    out.name = "temp"; // TODO temporary
+    out.name = fullToken;
     
     // add to tokMem
     tokMem.push_back(out);
@@ -137,7 +188,7 @@ bool lexer::next_tok(tok &out) {
     curChar = storedChar;
   }
   
-  return good;
+  return !illegalChar;
 }
 
 void lexer::undo() {
