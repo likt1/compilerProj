@@ -64,36 +64,47 @@ void p_return_statement(bool &, bool &);
 // cannot error | exists checker
 void p_identifier(bool &, bool &);
 
-void p_expression(bool &);
+// exists safe
+void p_expression(bool &, bool &);
 
-void p_expression_pr(bool &);
+// exists safe
+void p_expression_pr(bool &, bool &);
 
-void p_arithOp(bool &);
+// exists safe
+void p_arithOp(bool &, bool &);
 
-void p_arithOp_pr(bool &);
+// exists safe
+void p_arithOp_pr(bool &, bool &);
 
-void p_relation(bool &);
+// exists safe
+void p_relation(bool &, bool &);
 
-void p_relation_pr(bool &);
+// exists safe
+void p_relation_pr(bool &, bool &);
 
-void p_term(bool &);
+// exists safe
+void p_term(bool &, bool &);
 
-void p_term_pr(bool &);
+// exists safe
+void p_term_pr(bool &, bool &);
 
-void p_factor(bool &);
+// exists checker
+void p_factor(bool &, bool &);
 
-void p_name(bool &);
+// exists checker (basically destination)
+void p_name(bool &, bool &);
 
+// exists safe?
 void p_argument_list(bool &, bool &);
 
-// cannot error
+// cannot error | exists checker
 void p_number(bool &, bool &);
 
-// cannot error
-void p_string(bool &);
+// cannot error | exists checker
+void p_string(bool &, bool &);
 
-// cannot error
-void p_char(bool &);
+// cannot error | exists checker
+void p_char(bool &, bool &);
 
 #endif
 

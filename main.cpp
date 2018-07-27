@@ -602,7 +602,11 @@ void p_assignment_statement(bool &success, bool &exists) {
     }
     
     if (exists) {
-      p_expression(suc);
+      p_expression(suc, exists);
+      if (!exists) {
+        std::string errMsg = "Missing <expression> from <assignment_statement>";
+        reportError(token, err_type::error, errMsg);
+      }
     }
   }
 }
@@ -624,7 +628,11 @@ void p_destination(bool &success, bool &exists) {
       }
       
       if (array) {
-        p_expression(suc);
+        p_expression(suc, exists);
+        if (!exists) {
+          std::string errMsg = "Missing <expression> from <destination>";
+          reportError(token, err_type::error, errMsg);
+        }
         
         if (a_getTok(token) && // ]
             !check_crit(token, token_type::type_symb, symb_type::symb_cl_bracket)) {
@@ -657,7 +665,12 @@ void p_if_statement(bool &success, bool &exists) {
         reportError(token, err_type::error, errMsg);
         scanner.undo();
       }
-      p_expression(suc);
+      
+      p_expression(suc, exists);
+      if (!exists) {
+        std::string errMsg = "Missing <expression> from <if_statement>";
+        reportError(token, err_type::error, errMsg);
+      }
       
       if (a_getTok(token) && // )
           !check_crit(token, token_type::type_symb, symb_type::symb_cl_paren)) {
@@ -753,103 +766,425 @@ void p_if_statement(bool &success, bool &exists) {
 
 void p_loop_statement(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    exists = true;
+    if (a_getTok(token) && // for
+        !check_crit(token, token_type::type_keyword, key_type::key_for)) {
+      exists = false;
+      scanner.undo();
+      //std::string errMsg = "Missing '(' from <procedure_call>";
+      //reportError(token, err_type::error, errMsg);
+    }
+    
+    if (exists) {
+      if (a_getTok(token) && // (
+          !check_crit(token, token_type::type_symb, symb_type::symb_op_paren)) {
+        std::string errMsg = "Missing '(' from <loop_statement>";
+        reportError(token, err_type::error, errMsg);
+        scanner.undo();
+      }
+      
+      p_assignment_statement(suc, exists);
+      if (!exists) {
+        std::string errMsg = "Missing assignment statement from <loop_statement>";
+        reportError(token, err_type::error, errMsg);
+      }
+      
+      if (a_getTok(token) && // ;
+          !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+        std::string errMsg = "Missing ';' from <loop_statement>";
+        reportError(token, err_type::error, errMsg);
+        scanner.undo();
+      }
+      
+      p_expression(suc, exists);
+      if (!exists) {
+        std::string errMsg = "Missing <expression> from <loop_statement>";
+        reportError(token, err_type::error, errMsg);
+      }
+      
+      if (a_getTok(token) && // )
+          !check_crit(token, token_type::type_symb, symb_type::symb_cl_paren)) {
+        std::string errMsg = "Missing ')' from <loop_statement>";
+        reportError(token, err_type::error, errMsg);
+        scanner.undo();
+      }
+      
+      p_statement(suc, exists); // first statement
+      if (!exists) {
+        std::string errMsg = "Missing statements from <loop_statement>";
+        reportError(token, err_type::error, errMsg);
+      }
+        
+      if (exists && a_getTok(token) && // ;
+          !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+        std::string errMsg = "Missing ';' from <loop_statement><statement>";
+        reportError(token, err_type::error, errMsg);
+        scanner.undo();
+      }
+      
+      while (exists) { // statement repeat
+        p_statement(suc, exists); // unused suc
+        
+        if (exists && a_getTok(token) && // ;
+            !check_crit(token, token_type::type_symb, symb_type::symb_semicolon)) {
+          std::string errMsg = "Missing ';' from <loop_statement><statement>";
+          reportError(token, err_type::error, errMsg);
+          scanner.undo();
+        }
+      }
+      
+      if (a_getTok(token) && // end
+          !check_crit(token, token_type::type_keyword, key_type::key_end)) {
+        std::string errMsg = "Missing 'end' from <if_statement>";
+        reportError(token, err_type::error, errMsg);
+        eat_misspelling(token);
+      }
+      
+      if (a_getTok(token) && // for
+          !check_crit(token, token_type::type_keyword, key_type::key_for)) {
+        std::string errMsg = "Missing 'for' from <if_statement><end>";
+        reportError(token, err_type::error, errMsg);
+        //eat_misspelling(token); // statements after end for can start with an identifier
+        scanner.undo();
+      }
+    }
   }
 }
 
 void p_return_statement(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    exists = true;
+    if (a_getTok(token) && // return
+        !check_crit(token, token_type::type_keyword, key_type::key_return)) {
+      exists = false;
+      scanner.undo();
+    }
   }
 }
 
 void p_identifier(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    exists = true;
+    if (a_getTok(token) && // identifier
+        !(token.tokenType == token_type::type_id)) {
+      exists = false;
+      scanner.undo();
+    }
   }
 }
 
-void p_expression(bool &success) {
+void p_expression(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    bool notFlag = false;
+    if (a_getTok(token)) { // opt: not
+      if (check_crit(token, token_type::type_keyword, key_type::key_not)) {
+        notFlag = true;
+      } else {
+        scanner.undo();
+      }
+    }
+    
+    p_arithOp(suc, exists);
+    p_expression_pr(suc, exists);
   }
 }
 
-void p_expression_pr(bool &success) {
+void p_expression_pr(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    if (a_getTok(token)) { // & or | and if neither exist backtrack
+      if (check_crit(token, token_type::type_symb, symb_type::symb_amper)) {
+        // handle ampersand
+        p_arithOp(suc, exists);
+        p_expression_pr(suc, exists);
+      } else if (check_crit(token, token_type::type_symb, symb_type::symb_straight)) {
+        // handle straight
+        p_arithOp(suc, exists);
+        p_expression_pr(suc, exists);
+      } else {
+        scanner.undo();
+      }
+    }
   }
 }
 
-void p_arithOp(bool &success) {
+void p_arithOp(bool &success, bool &exists) {
   if (!abortFlag) {
+    bool suc = true;
     
+    p_relation(suc, exists);
+    p_arithOp_pr(suc, exists);
   }
 }
 
-void p_arithOp_pr(bool &success) {
+void p_arithOp_pr(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    if (a_getTok(token)) { // + or - and if neither exist backtrack
+      if (check_crit(token, token_type::type_symb, symb_type::symb_plus)) {
+        // handle plus
+        p_relation(suc, exists);
+        p_arithOp_pr(suc, exists);
+      } else if (check_crit(token, token_type::type_symb, symb_type::symb_minus)) {
+        // handle minus
+        p_relation(suc, exists);
+        p_arithOp_pr(suc, exists);
+      } else {
+        scanner.undo();
+      }
+    }
   }
 }
 
-void p_relation(bool &success) {
+void p_relation(bool &success, bool &exists) {
   if (!abortFlag) {
+    bool suc = true;
     
+    p_term(suc, exists);
+    p_relation_pr(suc, exists);
   }
 }
 
-void p_relation_pr(bool &success) {
+void p_relation_pr(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    if (a_getTok(token)) { // <|>=|<=|>|==|!= and if none exist backtrack
+      if (check_crit(token, token_type::type_symb, symb_type::symb_smaller)) {
+        // handle smaller than
+        p_term(suc, exists);
+        p_relation_pr(suc, exists);
+      } else if (check_crit(token, token_type::type_symb, symb_type::symb_greater_eq)) {
+        // handle greater than or equals
+        p_term(suc, exists);
+        p_relation_pr(suc, exists);
+      } else if (check_crit(token, token_type::type_symb, symb_type::symb_smaller_eq)) {
+        // handle smaller than or equals
+        p_term(suc, exists);
+        p_relation_pr(suc, exists);
+      } else if (check_crit(token, token_type::type_symb, symb_type::symb_greater)) {
+        // handle grater than
+        p_term(suc, exists);
+        p_relation_pr(suc, exists);
+      } else if (check_crit(token, token_type::type_symb, symb_type::symb_equals)) {
+        // handle equals
+        p_term(suc, exists);
+        p_relation_pr(suc, exists);
+      } else if (check_crit(token, token_type::type_symb, symb_type::symb_not_equals)) {
+        // handle not equals
+        p_term(suc, exists);
+        p_relation_pr(suc, exists);
+      } else {
+        scanner.undo();
+      }
+    }
   }
 }
 
-void p_term(bool &success) {
+void p_term(bool &success, bool &exists) {
   if (!abortFlag) {
+    bool suc = true;
     
+    p_factor(suc, exists);
+    p_term_pr(suc, exists);
   }
 }
 
-void p_term_pr(bool &success) {
+void p_term_pr(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    if (a_getTok(token)) { // * or / and if neither exist backtrack
+      if (check_crit(token, token_type::type_symb, symb_type::symb_multi)) {
+        // handle multiply
+        p_factor(suc, exists);
+        p_term_pr(suc, exists);
+      } else if (check_crit(token, token_type::type_symb, symb_type::symb_div)) {
+        // handle divide
+        p_factor(suc, exists);
+        p_term_pr(suc, exists);
+      } else {
+        scanner.undo();
+      }
+    }
   }
 }
 
-void p_factor(bool &success) {
+void p_factor(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    exists = false;
+    if (a_getTok(token)) { // ( if not backtrack
+      if (check_crit(token, token_type::type_symb, symb_type::symb_op_paren)) {
+        // handle expression
+        exists = true;
+      } else {
+        scanner.undo();
+      }
+    }
+    
+    if (exists) {
+      p_expression(suc, exists);
+      if (!exists) {
+        std::string errMsg = "Missing <expression> from <factor><expression>";
+        reportError(token, err_type::error, errMsg);
+      }
+      
+      if (a_getTok(token) && // )
+          !check_crit(token, token_type::type_symb, symb_type::symb_cl_paren)) {
+        std::string errMsg = "Missing ')' from <factor><expression>";
+        reportError(token, err_type::error, errMsg);
+        scanner.undo();
+      }
+    } else {
+      bool neg = false;
+      if (a_getTok(token)) { // - if not backtrack
+        if (check_crit(token, token_type::type_symb, symb_type::symb_op_paren)) {
+          // handle negative
+          neg = true;
+        } else {
+          scanner.undo();
+        }
+      }
+      
+      p_name(suc, exists);
+      if (!exists) {
+        p_number(suc, exists);
+      }
+      if (!exists) {
+        p_string(suc, exists);
+        if (exists && neg) {
+          std::string errMsg = "Invalid - for string from <factor>";
+          reportError(token, err_type::error, errMsg);
+        }
+      }
+      if (!exists) {
+        p_char(suc, exists);
+        if (exists && neg) {
+          std::string errMsg = "Invalid - for char from <factor>";
+          reportError(token, err_type::error, errMsg);
+        }
+      }
+      if (!exists) {
+        if (a_getTok(token)) { // true or false and if neither exist backtrack
+          if (check_crit(token, token_type::type_keyword, key_type::key_true)) {
+            exists = true;
+            if (neg) {
+              std::string errMsg = "Invalid - for true from <factor>";
+              reportError(token, err_type::error, errMsg);
+            } else {
+              // handle true
+            }
+          } else if (check_crit(token, token_type::type_keyword, key_type::key_false)) {
+            exists = true;
+            if (neg) {
+              std::string errMsg = "Invalid - for false from <factor>";
+              reportError(token, err_type::error, errMsg);
+            } else {
+              // handle false
+            }
+          } else {
+            // handle alone neg, not true or false and none of the above, but still have neg
+            if (neg) {
+              std::string errMsg = "Orphan '-' in <factor>";
+              reportError(token, err_type::error, errMsg);
+            }
+            scanner.undo();
+          }
+        }
+      }
+    }
   }
 }
 
-void p_name(bool &success) {
-  if (!abortFlag) {
-    
-  }
+void p_name(bool &success, bool &exists) {
+  bool suc = true;
+  p_destination(suc, exists);
 }
 
 void p_argument_list(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    bool prevArgs = exists;
+    p_expression(suc, exists);
+    
+    if (exists) {
+      tok lookahead; peekTok(lookahead); // ,
+      if (check_crit(lookahead, token_type::type_symb, symb_type::symb_comma)) {
+        getTok(token);
+        p_argument_list(suc, exists);
+      } else {
+        p_expression(suc, exists);
+        if (exists) {
+          std::string errMsg = "Missing ',' from <argument_list>";
+          reportError(token, err_type::error, errMsg);
+        } else {
+          exists = true;
+        }
+      }
+    }
+    
+    if (prevArgs && !exists) {
+      std::string errMsg = "Orphan ',' from <argument_list>";
+      reportError(token, err_type::error, errMsg);
+      exists = true;
+    }
   }
 }
 
 void p_number(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    exists = true;
+    if (getTok(token)) {
+      if (token.tokenType == token_type::type_int) {
+        // handle int
+      } else if (token.tokenType == token_type::type_float) {
+        // handle float
+      } else { // number does not exist
+        exists = false;
+        scanner.undo();
+      }
+    }
   }
 }
 
-void p_string(bool &success) {
+void p_string(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    exists = true;
+    if (a_getTok(token) && // string
+        !(token.tokenType == token_type::type_string)) {
+      exists = false;
+      scanner.undo();
+    }
   }
 }
 
-void p_char(bool &success) {
+void p_char(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    exists = true;
+    if (a_getTok(token) && // char
+        !(token.tokenType == token_type::type_char)) {
+      exists = false;
+      scanner.undo();
+    }
   }
 }
 
