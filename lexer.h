@@ -9,29 +9,68 @@
 #include <string>
 #include <unordered_map>
 
-// enum token type TODO
+// enum token type
 enum token_type {
-  integer,
-  floating,
-  character,
-  string,
-  symbol, // operator
-  identifier,
-  keyword
+  type_int,
+  type_float,
+  type_char,
+  type_string,
+  type_symb, // operator
+  type_id,
+  type_keyword
 };
 
-// enum symbol TODO
-enum symbol_type {
-  add,
-  sub,
-  multi,
-  divider
+// enum symbol
+enum symb_type {
+  symb_period,      // .
+  symb_op_paren,    // (
+  symb_semicolon,   // ;
+  symb_cl_paren,    // )
+  symb_comma,       // ,
+  symb_op_bracket,  // [
+  symb_colon,       // :
+  symb_cl_bracket,  // ]
+  symb_minus,       // -
+  symb_assign,      // :=
+  symb_amper,       // &
+  symb_straight,    // |
+  symb_plus,        // +
+  symb_smaller,     // <
+  symb_greater,     // >
+  symb_smaller_eq,  // <=
+  symb_greater_eq,  // >=
+  symb_equals,      // ==
+  symb_not_equals,  // !=
+  symb_multi,       // *
+  symb_div,         // /
+  symb_quote,       // '
+  symb_db_quote     // "
 };
 
-// enum keyword TODO
-enum keyword_type {
-  res_if,
-  res_else
+// enum keyword 
+enum key_type {
+  key_program,
+  key_is,
+  key_begin,
+  key_end,
+  key_global,
+  key_procedure,
+  key_in,
+  key_out,
+  key_inout,
+  key_integer,
+  key_float,
+  key_string,
+  key_bool,
+  key_char,
+  key_if,
+  key_then,
+  key_else,
+  key_for,
+  key_return,
+  key_not,
+  key_true,
+  key_false
 };
 
 // job object for a sample job TODO
@@ -42,8 +81,8 @@ struct tok {
     int i;
     float f;
     char c;
-    symbol_type s;
-    keyword_type r;
+    symb_type s;
+    key_type r;
   };
   int linePos; // line of first char
   int charPos; // loc of first char
@@ -52,7 +91,7 @@ struct tok {
 class lexer {
 
 private:
-  std::unordered_map<const char*, keyword_type> keywordL;
+  std::unordered_map<const char*, key_type> keywordL;
   error_list* errL;
   
   std::fstream fs;
