@@ -74,6 +74,9 @@ void printTok(tok &token) {
     case type_symb:
       std::cout << "-> " << scanner.symbToString(token.s);
       break;
+    case type_illegal:
+      std::cout << "-> " << scanner.illgToString(token.il);
+      break;
   }
   std::cout << "\n";
 }
@@ -349,8 +352,7 @@ void p_parameter_list(bool &success, bool &exists) {
     p_parameter(suc, exists);
     
     if (exists) {
-      tok lookahead;
-      peekTok(lookahead); // ,
+      tok lookahead; peekTok(lookahead); // ,
       if (check_crit(lookahead, token_type::type_symb, symb_type::symb_comma)) {
         getTok(token);
         p_parameter_list(suc, exists);
@@ -606,17 +608,64 @@ void p_statement(bool &success, bool &exists) {
 
 void p_procedure_call(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
+    p_identifier(suc, exists);
     
+    if (exists) {
+      if (a_getTok(token)) { // (
+        if (!check_crit(token, token_type::type_symb, symb_type::symb_op_paren)) {
+          std::string errMsg = "Missing '(' from <procedure_call>";
+          reportError(token, err_type::error, errMsg);
+          scanner.undo();
+        }
+      } else {
+        abortFlag = true;
+      }
+      
+      bool hasArgs = false;
+      p_argument_list(suc, hasArgs); // unused suc
+      if (hasArgs) {
+        // add arg list to call
+      }
+      
+      if (a_getTok(token)) { // )
+        if (!check_crit(token, token_type::type_symb, symb_type::symb_cl_paren)) {
+          std::string errMsg = "Missing ')' from <procedure_call>";
+          reportError(token, err_type::error, errMsg);
+          scanner.undo();
+        }
+      } else {
+        abortFlag = true;
+      }
+    }
   }
 }
 
 void p_assignment_statement(bool &success, bool &exists) {
   if (!abortFlag) {
+    tok token; bool suc = true;
     
+    p_destination(suc, exists);
+    
+    if (exists) {
+      tok lookahead; peekTok(lookahead);
+      if (check_crit(lookahead, token_type::type_symb, symb_type::symb_assign)) {
+        getTok(token);
+      } else if (check_crit(lookahead, token_type::type_illegal, ill_type::ill_equals)) {
+        std::string errMsg = "Malformed '!=' from <assignment_statement>";
+        reportError(token, err_type::error, errMsg);
+      } else {
+        exists = false;
+      }
+    }
+    
+    if (exists) {
+      p_expression(suc);
+    }
   }
 }
 
-void p_destination(bool &success) {
+void p_destination(bool &success, bool &exists) {
   if (!abortFlag) {
     
   }
@@ -706,7 +755,7 @@ void p_name(bool &success) {
   }
 }
 
-void p_argument_list(bool &success) {
+void p_argument_list(bool &success, bool &exists) {
   if (!abortFlag) {
     
   }
@@ -739,15 +788,15 @@ int main(int argc, const char *argv[]) {
     
     
     // begin parsing
-    p_program(suc);
+    //p_program(suc);
     
-    /* DEBUG
+    // DEBUG
     tok token;
     
     while (getTok(token)) {
       printTok(token);
     }
-    */
+    //
     
     scanner.deinit();
   } else {

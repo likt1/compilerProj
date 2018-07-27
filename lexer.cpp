@@ -45,6 +45,7 @@ const char* lexer::typeToString(token_type tokenType) {
     case type_symb: return "symbol";
     case type_id: return "identifier";
     case type_keyword: return "keyword";
+    case type_illegal: return "illegal";
     default: return "unknown";
   }
 }
@@ -102,6 +103,14 @@ const char* lexer::keywToString(key_type keyType) {
     case key_not: return "not";
     case key_true: return "true";
     case key_false: return "false";
+    default: return "unknown";
+  }
+}
+
+const char* lexer::illgToString(ill_type illType) {
+  switch (illType) {
+    case ill_equals: return "equals";
+    case ill_exc_pnt: return "exclaimation point";
     default: return "unknown";
   }
 }
@@ -274,14 +283,14 @@ bool lexer::next_tok(tok &out) {
                     fullToken.push_back(nxtChar);
                     out.tokenType = token_type::type_symb;
                     out.s = symb_type::symb_not_equals;
-                    state = states::done;
-                    consume = true;
                   } else {
                     illegalChar = true;
                     reportError(err_type::error, "Illegal ! detected");
-                    fullToken.clear();
-                    state = states::unstarted;
+                    out.tokenType = token_type::type_illegal;
+                    out.il = ill_type::ill_exc_pnt;
                   }
+                  state = states::done;
+                  consume = true;
                   break;
                 case '=':
                   peeky = fs.peek();
@@ -291,14 +300,14 @@ bool lexer::next_tok(tok &out) {
                     fullToken.push_back(nxtChar);
                     out.tokenType = token_type::type_symb;
                     out.s = symb_type::symb_equals;
-                    state = states::done;
-                    consume = true;
                   } else {
                     illegalChar = true;
                     reportError(err_type::error, "Illegal = detected");
-                    fullToken.clear();
-                    state = states::unstarted;
+                    out.tokenType = token_type::type_illegal;
+                    out.il = ill_type::ill_equals;
                   }
+                  state = states::done;
+                  consume = true;
                   break;
                 case '\'': // handled by character
                   state = states::character;

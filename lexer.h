@@ -15,7 +15,8 @@ enum token_type {
   type_string,
   type_symb, // operator
   type_id,
-  type_keyword
+  type_keyword,
+  type_illegal
 };
 
 // enum symbol
@@ -71,6 +72,12 @@ enum key_type {
   key_false
 };
 
+// enum illegals
+enum ill_type {
+  ill_equals,
+  ill_exc_pnt
+};
+
 // job object for a sample job TODO
 struct tok {
   token_type tokenType;
@@ -81,6 +88,7 @@ struct tok {
     char c;
     symb_type s;
     key_type k;
+    ill_type il;
   };
   int linePos; // line of first char
   int charPos; // loc of first char
@@ -114,6 +122,7 @@ public:
   const char* typeToString(token_type);
   const char* symbToString(symb_type);
   const char* keywToString(key_type);
+  const char* illgToString(ill_type);
   
   lexer();
   ~lexer();

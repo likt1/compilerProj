@@ -34,7 +34,7 @@ void p_procedure_call(bool &, bool &);
 
 void p_assignment_statement(bool &, bool &);
 
-void p_destination(bool &);
+void p_destination(bool &, bool &);
 
 void p_if_statement(bool &, bool &);
 
@@ -64,7 +64,7 @@ void p_factor(bool &);
 
 void p_name(bool &);
 
-void p_argument_list(bool &);
+void p_argument_list(bool &, bool &);
 
 void p_number(bool &, bool &);
 
