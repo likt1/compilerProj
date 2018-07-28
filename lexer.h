@@ -123,6 +123,7 @@ public:
   const char* symbToString(symb_type);
   const char* keywToString(key_type);
   const char* illgToString(ill_type);
+  const char* errTypeToString(err_type);
   
   lexer();
   ~lexer();

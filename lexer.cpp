@@ -114,6 +114,15 @@ const char* lexer::illgToString(ill_type illType) {
     default: return "unknown";
   }
 }
+
+const char* lexer::errTypeToString(err_type type) {
+  switch (type) {
+    case warning: return "warning";
+    case error: return "error";
+    case crit_error: return "critical error";
+    default: return "unknown";
+  }
+}
   
 //====================== Init functions ======================//
 lexer::lexer() {
@@ -174,10 +183,10 @@ void lexer::reportError(err_type eT, std::string msg) {
   newError.charNum = curChar;
 
   errL->push_back(newError);
-  std::cout << "  (L: " << newError.lineNum;
-  std::cout << "|C: " << newError.charNum;
-  std::cout  << ") [" << newError.errT << "] ";
-  std::cout << newError.msg << "\n";
+  //std::cout << "  (L: " << newError.lineNum;
+  //std::cout << "|C: " << newError.charNum;
+  //std::cout  << ") [" << newError.errT << "] ";
+  //std::cout << newError.msg << "\n";
 }
 
 //====================== Tokenizer functions ======================//
@@ -191,6 +200,10 @@ bool lexer::next_tok(tok &out) {
     curChar = out.charPos;
   }
   else {
+    if (fileEnd) {
+      out = tokMem.at(tokCursor - 1);
+      return true;
+    }
     states state = states::unstarted;
     bool whitespace, consume;
     int commentLevel = 0;

@@ -6,6 +6,8 @@
 #include <stack>
 
 #define DEBUG_FLAG false
+#define SCANNER_ONLY false
+
 #define symbol_table std::unordered_map<const char*, token_type>
 // define a symbol table list to work with scoping?
 // we will always need a local scope and global scope, while there is a block
@@ -41,10 +43,12 @@ void reportError(tok &token, err_type eT, std::string msg) {
   }
 
   errList.push_back(newError);
-  std::cout << "    (L: " << newError.lineNum;
-  std::cout << "|C: " << newError.charNum;
-  std::cout  << ") [" << newError.errT << "] ";
-  std::cout << newError.msg << "\n";
+  if (DEBUG_FLAG) {
+    std::cout << "  (L: " << newError.lineNum;
+    std::cout << "|C: " << newError.charNum;
+    std::cout << ") [" << scanner.errTypeToString(newError.errT) << "] ";
+    std::cout << newError.msg << "\n";
+  }
 }
 
 std::string cleanDblQuotes(std::string str) {
@@ -55,6 +59,12 @@ std::string cleanDblQuotes(std::string str) {
     }
   }
   return out;
+}
+
+void print_dbg_message(const char* msg) {
+  if (DEBUG_FLAG) {
+    std::cout << msg;
+  }
 }
 
 void printTok(tok &token) {
@@ -98,11 +108,13 @@ bool getTok(tok &token) {
     }
   }
   if (scanner.fileEnd) { // end of file abort
-    std::cout << "End of file reached\n";
+    print_dbg_message("End of file reached\n");
     abortFlag = true;
     return false;
   }
-  printTok(token);
+  if (DEBUG_FLAG) {
+    printTok(token);
+  }
   return true;
 }
 
@@ -112,20 +124,22 @@ bool a_getTok(tok &token) {
 
 bool check(tok &token, token_type type, int sec_type) {
   if (token.tokenType != type) {
-    std::cout << scanner.typeToString(token.tokenType);
-    std::cout << " vs [" << scanner.typeToString(type);
-    switch (type) {
-      case type_symb:
-        std::cout << "|" << scanner.symbToString((symb_type)sec_type);
-        break;
-      case type_keyword:
-        std::cout << "|" << scanner.keywToString((key_type)sec_type);
-        break;
-      case type_illegal:
-        std::cout << "|" << scanner.illgToString((ill_type)sec_type);
-        break;
+    if (DEBUG_FLAG) {
+      std::cout << scanner.typeToString(token.tokenType);
+      std::cout << " vs [" << scanner.typeToString(type);
+      switch (type) {
+        case type_symb:
+          std::cout << "|" << scanner.symbToString((symb_type)sec_type);
+          break;
+        case type_keyword:
+          std::cout << "|" << scanner.keywToString((key_type)sec_type);
+          break;
+        case type_illegal:
+          std::cout << "|" << scanner.illgToString((ill_type)sec_type);
+          break;
+      }
+      std::cout << "] FALSE\n";
     }
-    std::cout << "] FALSE\n";
     return false;
   }
   
@@ -133,25 +147,31 @@ bool check(tok &token, token_type type, int sec_type) {
   switch (type) {
     case type_symb:
       tokenSecondary = token.s;
-      std::cout << scanner.symbToString(token.s);
-      std::cout << " vs " << scanner.symbToString((symb_type)sec_type);
+      if (DEBUG_FLAG) {
+        std::cout << scanner.symbToString(token.s);
+        std::cout << " vs " << scanner.symbToString((symb_type)sec_type);
+      }
       break;
     case type_keyword:
       tokenSecondary = token.k;
-      std::cout << scanner.keywToString(token.k);
-      std::cout << " vs " << scanner.keywToString((key_type)sec_type);
+      if (DEBUG_FLAG) {
+        std::cout << scanner.keywToString(token.k);
+        std::cout << " vs " << scanner.keywToString((key_type)sec_type);
+      }
       break;
     case type_illegal:
       tokenSecondary = token.il;
-      std::cout << scanner.illgToString(token.il);
-      std::cout << " vs " << scanner.illgToString((ill_type)sec_type);
+      if (DEBUG_FLAG) {
+        std::cout << scanner.illgToString(token.il);
+        std::cout << " vs " << scanner.illgToString((ill_type)sec_type);
+      }
       break;
   }
   if (tokenSecondary != sec_type) {
-    std::cout << " FALSE\n";
+    print_dbg_message(" FALSE\n");
     return false;
   }
-  std::cout << " TRUE\n";
+  print_dbg_message(" TRUE\n");
   return true;
 }
 
@@ -165,18 +185,63 @@ void eat_misspelling(tok &token) {
   } // otherwise do nothing (eat)
 }
 
-// remember, all errors on a single line (with same message) should be condensed into 1
+// All errors on a single line (with same message) should be condensed into 1
 void print_errors() {
-  
+  if (errList.size() == 0) {
+    std::cout << "No errors or warnings detected\n";
+  } else { // TODO compress errors on single lines (with the same message)
+    int linePos = -1; bool statement = false, consume = false;
+    for (error_list::iterator i = errList.begin() ; i != errList.end(); ++i) {
+    
+      if ((*i).msg.compare("Incorrect start token in <statement>") == 0) {
+        if (linePos < 0) {
+          linePos = (*i).lineNum;
+          std::cout << "  (L: " << linePos;
+          std::cout << "|C: " << (*i).charNum;
+          std::cout << ") [" << scanner.errTypeToString((*i).errT) << "] ";
+          std::cout << "Malformed line in <statement>\n";
+        } else {
+          if (linePos != (*i).lineNum) {
+            linePos = -1;
+            --i;
+          }
+        }
+      } else if ((*i).msg.compare("Incorrect start token in <declaration>") == 0) {
+        if (linePos < 0) {
+          linePos = (*i).lineNum;
+          std::cout << "  (L: " << linePos;
+          std::cout << "|C: " << (*i).charNum;
+          std::cout << ") [" << scanner.errTypeToString((*i).errT) << "] ";
+          std::cout << "Malformed line in <declaration>\n";
+        } else {
+          if (linePos != (*i).lineNum) {
+            linePos = -1;
+            --i;
+          }
+        }
+      } else {
+        if (linePos > -1) {
+          linePos = -1;
+        }
+        std::cout << "  (L: " << (*i).lineNum;
+        std::cout << "|C: " << (*i).charNum;
+        std::cout << ") [" << scanner.errTypeToString((*i).errT) << "] ";
+        std::cout << (*i).msg << "\n";
+      }
+    }
+  }
 }
 
-// parser paradigm
-//   If a token was incorrect in a required parsing, the token is placed back where
-//     it was, EXCEPT if it was a start of a parse tree
-//   Look ahead checks for spelling errors are ONLY DONE with back to back token
-//     handles.
+/* parser paradigm
+ *   If a token was incorrect in a required parsing, the token is placed back where
+ *     it was, EXCEPT if it might be a spelling error (identifier at keyword location
+ *     where it is guarenteed illegal).
+ *   For DECLARATIONS and STATEMENTS, the parser will attempt to eat all tokens 
+ *     (as potential declarations and statements) until it finds the corresponding end 
+ *     word.  If it does not, it will eat ALL TOKENS and that messes up a lot of parsing.
+ */
 
-// DEFINITIONS IN HEADER parserF.h
+// Function definitions exist in header parserF.h
 //====================== Parser functions ======================//
 void p_program(bool &success) {  
   tok token; bool suc = true;
@@ -185,12 +250,19 @@ void p_program(bool &success) {
   
   p_program_body(suc); // unused suc
   
-  if (a_getTok(token)) { // .
+  if (getTok(token)) { // .
     if (!check(token, token_type::type_symb, symb_type::symb_period)) {
       std::string errMsg = "Unknown token after <program>";
       reportError(token, err_type::error, errMsg);
     }
   } else {
+    token.linePos = 0;
+    scanner.next_tok(token);
+    while (token.linePos == 0) {
+      scanner.undo();
+      scanner.undo();
+      scanner.next_tok(token);
+    }
     std::string errMsg = "Missing . from <program>";
     reportError(token, err_type::warning, errMsg);
   }
@@ -951,7 +1023,7 @@ void p_identifier(bool &success, bool &exists) {
       scanner.undo();
     }
     if (exists) {
-      std::cout << "is identifier\n";
+      print_dbg_message("is identifier\n");
     }
   }
 }
@@ -1247,10 +1319,10 @@ void p_number(bool &success, bool &exists) {
     if (getTok(token)) {
       if (token.tokenType == token_type::type_int) {
         // handle int
-        std::cout << "is int\n";
+        print_dbg_message("is int\n");
       } else if (token.tokenType == token_type::type_float) {
         // handle float
-        std::cout << "is float\n";
+        print_dbg_message("is float\n");
       } else { // number does not exist
         exists = false;
         scanner.undo();
@@ -1270,7 +1342,7 @@ void p_string(bool &success, bool &exists) {
       scanner.undo();
     }
     if (exists) {
-      std::cout << "is string\n";
+      print_dbg_message("is string\n");
     }
   }
 }
@@ -1286,7 +1358,7 @@ void p_char(bool &success, bool &exists) {
       scanner.undo();
     }
     if (exists) {
-      std::cout << "is char\n";
+      print_dbg_message("is char\n");
     }
   }
 }
@@ -1298,8 +1370,9 @@ int main(int argc, const char *argv[]) {
     scanner.init(argv[1], &errList);
     bool suc = true;
     
-    if (!DEBUG_FLAG) {
+    if (!SCANNER_ONLY) {
       p_program(suc);
+      print_errors();
     } else {
       tok token;
     
