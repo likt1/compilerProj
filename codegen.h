@@ -3,14 +3,33 @@
 
 enum tbl_type {
   tbl_proc,
-  tbl_obj
+  tbl_obj,
+  tbl_param
 };
+
+const char* tblTypeToString(tbl_type type) {
+  switch (type) {
+    case tbl_proc: return "procedure";
+    case tbl_obj: return "object";
+    case tbl_param: return "parameter";
+    default: return "unknown";
+  }
+}
 
 enum param_type {
   param_in,
   param_out,
   param_inout
 };
+
+const char* paramTypeToString(param_type type) {
+  switch (type) {
+    case param_in: return "in";
+    case param_out: return "out";
+    case param_inout: return "inout";
+    default: return "unknown";
+  }
+}
 
 enum obj_type {
   obj_integer,
@@ -21,6 +40,19 @@ enum obj_type {
   obj_temp,
   obj_none
 };
+
+const char* objTypeToString(obj_type type) {
+  switch (type) {
+    case obj_integer: return "integer";
+    case obj_float: return "float";
+    case obj_string: return "string";
+    case obj_bool: return "bool";
+    case obj_char: return "char";
+    case obj_temp: return "temp";
+    case obj_none: return "none";
+    default: return "unknown";
+  }
+}
 
 enum st_type {
   st_assign,

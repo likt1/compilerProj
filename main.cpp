@@ -380,7 +380,7 @@ std::string p_declaration(bool &exists, symbol* &declared, symbol_table &scope, 
     
     // Procedure or variable?
     std::string decN;
-    if (globalFlag) { // TODO codegen
+    if (globalFlag) {
       decN = p_procedure_declaration(exists, declared, globalTable);
     } else {
       decN = p_procedure_declaration(exists, declared, scope);
@@ -422,18 +422,27 @@ std::string p_declaration(bool &exists, symbol* &declared, symbol_table &scope, 
 std::string p_procedure_declaration(bool &exists, symbol* &declared, symbol_table &scope) {
   if (!abortFlag) {
    
-    // TODO codegen
-    p_procedure_header(exists); 
+    // create a new procedure if it exists and assign it to declared
+    std::string procN = p_procedure_header(exists, declared, scope); 
     
     if (exists) { // if the procedure header exists then parse body
-      // TODO create new procedure and assign it to declared
-      p_procedure_body(); 
+      if (procN.size() > 0) { // and the procedure name is valid
+        // populate new procedure
+        p_procedure_body((procedure* &) declared);
+        
+        return procN;
+      } else {
+        // still parse through the body, but do not create a procedure
+        procedure* tmp = new procedure();
+        p_procedure_body(tmp);
+        delete tmp;
+      }
     }
   }
   return "";
 }
 
-void p_procedure_header(bool &exists) {
+std::string p_procedure_header(bool &exists, symbol* &declared, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
     
@@ -447,55 +456,77 @@ void p_procedure_header(bool &exists) {
     }
     
     if (exists) {
-      bool reqExists = false;
-      p_identifier(reqExists);
+      bool reqExists = false, suc = true;
+      std::string procN = p_identifier(reqExists);
       if (!reqExists) {
         std::string errMsg = "Missing 'identifier' from <procedure_header>";
         reportError(token, err_type::error, errMsg);
+        suc = false;
       }
+      procedure* proc = new procedure(); proc->tblType = tbl_type::tbl_proc;
+      
+      if (scope.count(procN) != 0) {
+        std::string errMsg = "Identifier name already exists in current scope from <procedure_declaration>";
+        reportError(token, err_type::error, errMsg);
+        suc = false;
+      } else {
+        // assign procedure name (with procedure pointer) to itself
+        symbol_elm elem (procN, (symbol*) proc);
+        proc->local.scope.insert(elem);
+      }
+      
+      
       
       if (a_getTok(token) && // (
           !check(token, token_type::type_symb, symb_type::symb_op_paren)) {
         std::string errMsg = "Missing '(' from <procedure_header>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
+        suc = false;
       }
       
       bool hasParams = false;
-      p_parameter_list(hasParams); 
-      if (hasParams) {
-        // add param list to procedure
-      } 
+      p_parameter_list(hasParams, suc, *proc); // params are automatically added
       
       if (a_getTok(token) && // )
           !check(token, token_type::type_symb, symb_type::symb_cl_paren)) {
         std::string errMsg = "Missing ')' from <procedure_header>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
+        suc = false;
+      }
+      
+      if (suc) { // only if everything passed
+        declared = (symbol*) proc; // assign obj to output
+        return procN; // return name
+      } else {
+        delete proc;
       }
     }
   } else { // abort, no more file, therefore cannot exist
     exists = false;
   }
+  return "";
 }
 
-void p_parameter_list(bool &exists) {
+void p_parameter_list(bool &exists, bool &suc, procedure &proc) {
   if (!abortFlag) {
     tok token;
     
     bool prevParams = exists;
-    p_parameter(exists);
+    p_parameter(exists, proc);
     
     if (exists) {
       tok lookahead; peekTok(lookahead); // ,
       if (check(lookahead, token_type::type_symb, symb_type::symb_comma)) {
         getTok(token);
-        p_parameter_list(exists);
+        p_parameter_list(exists, suc, proc);
       } else {
-        p_parameter(exists);
+        p_parameter(exists, proc);
         if (exists) {
           std::string errMsg = "Missing ',' from <parameter_list>";
           reportError(token, err_type::error, errMsg);
+          suc = false;
         } else {
           exists = true;
         }
@@ -506,49 +537,86 @@ void p_parameter_list(bool &exists) {
       std::string errMsg = "Orphan ',' from <parameter_list>";
       reportError(token, err_type::error, errMsg);
       exists = true;
+      suc = false;
     }
+  } else {
+    suc = false;
   }
 }
-//, symbol* decParam, symbol_table &scope
-void p_parameter(bool &exists) {
+
+void p_parameter(bool &exists, procedure &proc) {
   if (!abortFlag) {
-    tok token;
+    tok token; bool suc = true;
     
-    // TODO temp code
-    symbol* decParam; symbol_table scope;
-    p_variable_declaration(exists, decParam, scope);
+    object* paramVals;
+    std::string paramN = p_variable_declaration(exists, (symbol* &) paramVals, proc.local.scope);
+    
+    param* parameter = new param();
+    if (paramN.size() > 0) { // valid variable declaration
+      // move paramVals from obj
+      parameter->tblType = tbl_type::tbl_param;
+      parameter->objType = paramVals->objType;
+      parameter->lb = paramVals->lb;
+      parameter->ub = paramVals->ub;
+    } else { // invalid, so remember to delete param obj
+      suc = false;
+    }
     
     if (exists && a_getTok(token)) { // in/out/inout
       if (check(token, token_type::type_keyword, key_type::key_in)) {
-        // define in
+        parameter->paramType = param_type::param_in; // define in
       } else if (check(token, token_type::type_keyword, key_type::key_out)) {
-        // define out
+        parameter->paramType = param_type::param_out; // define out
       } else if (check(token, token_type::type_keyword, key_type::key_inout)) {
-        // define inout
+        parameter->paramType = param_type::param_inout; // define inout
       } else {
         std::string errMsg = "Missing 'in/out/inout' from <parameter>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
+        suc = false;
       }
+    }
+    
+    if (suc) {
+      // assign to procedure
+      symbol_elm elem (paramN, (symbol*) parameter); // declared is not NULL so make element
+      proc.local.scope.insert(elem);
+    } else {
+      delete parameter;
     }
   }
 }
 
-void p_procedure_body() {
+void p_procedure_body(procedure* &proc) {
   if (!abortFlag) {
     tok token;
     
     bool exists = false;
     do { // declaration repeat
-      // TODO temp code
-      symbol* declared; symbol_table scope; bool globalFlag = false;
-      p_declaration(exists, declared, scope, globalFlag); 
+      symbol* declared; bool globalFlag = false;
+      std::string decN = p_declaration(exists, declared, proc->local.scope, globalFlag); 
       
+      bool addFlag = true;
       if (exists && a_getTok(token) && // ;
           !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
         std::string errMsg = "Missing ';' from <procedure_body><declaration>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
+        addFlag = false;
+      }
+      
+      if (addFlag) {
+        if (decN.size() > 0) { // if empty, declaration fired off an error already
+          symbol_elm elem (decN, declared); // declared is not NULL so make element
+          if (!globalFlag) {
+            proc->local.scope.insert(elem);
+          } else {
+            // according to project semantics, only those in the OUTERMOST SCOPE
+            //   are considered for globalTable
+            //globalTable.insert(elem); 
+            proc->local.scope.insert(elem);
+          }
+        }
       }
     } while (exists && !abortFlag);
     
@@ -560,6 +628,7 @@ void p_procedure_body() {
       scanner.undo();
     }
     
+    // TODO code gen
     do { // statement repeat
       p_statement(exists); 
       
@@ -1483,20 +1552,30 @@ void p_char(bool &exists) {
   }
 }
 
-void printSymbolTable(symbol_table &tbl) {
+void printSymbolTable(std::string name, symbol_table &tbl) {
   for (symbol_table::iterator it = tbl.begin(); it != tbl.end(); ++it) {
-    std::cout << it->first << ": " << it->second->tblType;
-    
-    if (it->second->tblType == tbl_type::tbl_proc) {
-      procedure* proc = (procedure*) it->second;
-      std::cout << " " << proc->local.scope.size() << "\n";
-      printSymbolTable(proc->local.scope);
+    if (name.compare(it->first) != 0) {
+      std::cout << it->first << ": " << tblTypeToString(it->second->tblType);
+      
+      if (it->second->tblType == tbl_type::tbl_proc) {
+        procedure* proc = (procedure*) it->second;
+        std::cout << " " << proc->local.scope.size();
+        std::cout << " Begin proc ------------\n";
+        printSymbolTable(it->first, proc->local.scope);
+      } else {
+        if (it->second->tblType == tbl_type::tbl_param) {
+          param* x = (param*) it->second;
+          std::cout << " " << paramTypeToString(x->paramType);
+        }
+        object* x = (object*) it->second;
+        std::cout << "\n  " << " " << objTypeToString(x->objType) << " [" << x->lb << ":" 
+                  << x->ub << "]" << "\n";
+      }
     } else {
-      object* x = (object*) it->second;
-      std::cout << "\n  " << " " << x->objType << " " << x->lb << " " 
-                << x->ub << " " << "\n";
+      std::cout << it->first << ": \n";
     }
   }
+  std::cout << "------------\n";
 }
 
 //====================== Main ======================//
@@ -1529,7 +1608,7 @@ int main(int argc, const char *argv[]) {
         float vect5[10:20];
       */
       
-      printSymbolTable(globalTable);
+      printSymbolTable("global", globalTable);
       
     } else {
       tok token;

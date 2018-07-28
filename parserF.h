@@ -25,15 +25,18 @@ std::string p_procedure_declaration(bool &,
     symbol* &, symbol_table &);
 
 // exists checker
-void p_procedure_header(bool &);
+std::string p_procedure_header(bool &,
+    symbol* &, symbol_table &);
 
 // exists safe?
-void p_parameter_list(bool &);
+void p_parameter_list(bool &, bool &,
+    procedure &);
 
 // exists safe
-void p_parameter(bool &);
+void p_parameter(bool &,
+    procedure &);
 
-void p_procedure_body();
+void p_procedure_body(procedure* &);
 
 // exists safe
 std::string p_variable_declaration(bool &, 
