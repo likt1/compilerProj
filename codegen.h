@@ -6,6 +6,12 @@ enum tbl_type {
   tbl_obj
 };
 
+enum param_type {
+  param_in,
+  param_out,
+  param_inout
+};
+
 enum obj_type {
   obj_integer,
   obj_float,
@@ -69,10 +75,12 @@ public:
 };
 
 #define symbol_table std::unordered_map<std::string, symbol>
+#define symbol_elm std::pair<std::string, symbol>
 #define statements_vector std::vector<statement>
 #define expression_vector std::vector<expression>
 
 class block {
+public:
   symbol_table scope;
   statements_vector statements;
 };
@@ -89,6 +97,11 @@ public:
   int ub;
 };
 
+class param : public object {
+public:
+  param_type paramType;
+};
+
 class assign_statement : public statement {
 public:
   object dest;
@@ -99,15 +112,15 @@ public:
 class if_statement : public statement {
 public:
   expression_vector test;
-  block local;
-  block elseLocal;
+  statements_vector statements;
+  statements_vector elseStatements;
 };
 
 class loop_statement : public statement {
 public:
   //assign_statement assignment;
+  statements_vector statements;
   expression_vector contExpression;
-  block local;
 };
 
 // ??

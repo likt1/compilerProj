@@ -78,7 +78,7 @@ enum ill_type {
   ill_exc_pnt
 };
 
-// job object for a sample job TODO
+// token object
 struct tok {
   token_type tokenType;
   std::string name;

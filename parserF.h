@@ -11,15 +11,16 @@
 //====================== Parser functions ======================//
 void p_program();
 
-void p_program_header();
+std::string p_program_header();
 
-void p_program_body();
+void p_program_body(std::string);
+
+// No type check needed, only creation of symbols (vars and procedures)
+// exists safe
+std::string p_declaration(bool &, symbol*, symbol_table &, bool &);
 
 // exists safe
-void p_declaration(bool &);
-
-// exists safe
-void p_procedure_declaration(bool &);
+std::string p_procedure_declaration(bool &, symbol*, symbol_table &);
 
 // exists checker
 void p_procedure_header(bool &);
@@ -33,7 +34,7 @@ void p_parameter(bool &);
 void p_procedure_body();
 
 // exists safe
-void p_variable_declaration(bool &);
+std::string p_variable_declaration(bool &, symbol*, symbol_table &);
 
 // exists checker
 void p_type_mark(bool &);

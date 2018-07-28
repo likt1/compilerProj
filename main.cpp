@@ -225,9 +225,16 @@ void print_errors() {
  *   If a token was incorrect in a required parsing, the token is placed back where
  *     it was, EXCEPT if it might be a spelling error (identifier at keyword location
  *     where it is guarenteed illegal).
- *   For DECLARATIONS and STATEMENTS, the parser will attempt to eat all tokens 
- *     (as potential declarations and statements) until it finds the corresponding end 
- *     word.  If it does not, it will eat ALL TOKENS and that messes up a lot of parsing.
+ *   For DECLARATIONS and STATEMENTS, the parser will attempt to eat all tokens (as
+ *     potential declarations and statements) until it finds the corresponding end word.
+ *     If it does not, it will eat ALL TOKENS and that messes up a lot of parsing.
+ */
+ 
+/* type check and code gen paradigm
+ *   Only add objects if they parse 100% correctly.  This means that statements or 
+ *     declares that are otherwise correct but are missing only the semicolon will 
+ *     NOT be added to the respective block symbol table or statement list and will 
+ *     cause other places to throw uninit or out of scope identifier type check errors.
  */
 
 // Function definitions exist in header parserF.h
@@ -235,9 +242,9 @@ void print_errors() {
 void p_program() {  
   tok token;
   
-  p_program_header(); 
+  std::string progN = p_program_header(); 
   
-  p_program_body();
+  p_program_body(progN);
   
   if (getTok(token)) { // .
     if (!check(token, token_type::type_symb, symb_type::symb_period)) {
@@ -257,7 +264,7 @@ void p_program() {
   }
 }
 
-void p_program_header() {
+std::string p_program_header() {
   tok token;
   
   if (getTok(token) && // program
@@ -269,13 +276,13 @@ void p_program_header() {
   
   bool reqExists = false;
   std::string progN = p_identifier(reqExists); 
-  procedure progP;
   if (!reqExists) {
     std::string errMsg = "Missing 'identifier' from <program_header>";
     reportError(token, err_type::error, errMsg);
   }
-  std::pair<std::string, symbol> program (progN, progP);
-  globalTable.insert(program);
+  procedure program; program.tblType = tbl_type::tbl_proc;
+  symbol_elm elem (progN, program);
+  globalTable.insert(elem);
   
   if (a_getTok(token) && // is
       !check(token, token_type::type_keyword, key_type::key_is)) {
@@ -283,21 +290,39 @@ void p_program_header() {
     reportError(token, err_type::error, errMsg);
     eat_misspelling(token);
   }
+  
+  return progN;
 }
 
-void p_program_body() {
+void p_program_body(std::string progN) {
   if (!abortFlag) {
-    tok token;
+    tok token; symbol_table::iterator program = globalTable.find(progN);
+    procedure* programObj = (procedure*) &(program->second);
     
     bool exists = false;
     do { // declaration repeat
-      p_declaration(exists); 
+      symbol* declared; bool globalFlag = false;
+      std::string decN = p_declaration(exists, declared, programObj->local.scope, globalFlag);
+      symbol_elm elem (decN, *declared);
       
+      bool addFlag = true;
       if (exists && a_getTok(token) && // ;
           !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
         std::string errMsg = "Missing ';' from <program_body><declaration>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
+        addFlag = false;
+      }
+      
+      if (addFlag) {
+        if (decN.size() > 0) { // if empty, declaration fired off a name conflict already
+          if (!globalFlag) {
+            programObj->local.scope.insert(elem);
+          } else {
+            globalTable.insert(elem);
+          }
+          delete declared;
+        }
       }
     } while (exists && !abortFlag);
     
@@ -309,6 +334,7 @@ void p_program_body() {
       scanner.undo();
     }
     
+    // TODO codegen
     do { // statement repeat
       p_statement(exists); 
       
@@ -336,56 +362,64 @@ void p_program_body() {
   }
 }
 
-void p_declaration(bool &exists) {
+std::string p_declaration(bool &exists, symbol* declared, symbol_table &scope, bool &globalFlag) {
   if (!abortFlag) {
     tok token;
     
-    bool global_obj = false;
+    globalFlag = false;
     if (getTok(token)) { // opt: global
       if (check(token, token_type::type_keyword, key_type::key_global)) {
-        global_obj = true;
+        globalFlag = true;
       } else { // backtrack
         scanner.undo();
       }
     }
     
     // Procedure or variable?
-    p_procedure_declaration(exists); 
+    std::string decN;
+    decN = p_procedure_declaration(exists, declared, scope);
     
     if (!exists) { // if it wasn't a procedure then it's a variable
-      p_variable_declaration(exists); 
+      decN = p_variable_declaration(exists, declared, scope); 
     } // if exists is still false then a declaration doesn't exist
     
-    if (global_obj && !exists) { // global with no declaration
+    if (globalFlag && !exists) { // global with no declaration
       std::string errMsg = "Orphan 'global' in <declaration>";
       reportError(token, err_type::error, errMsg);
     }
     
-    if (!exists) { // DECLARATIONS ALWAYS END IN 'BEGIN'
-      // so if there was no statement, the next token has to be 'begin'
-      getTok(token); // consume all invalid tokens until next declaration (or end of declarations) 
-      if (!check(token, token_type::type_keyword, key_type::key_begin)) {
-        // unknown token in declaration
-        std::string errMsg = "Incorrect start token in <declaration>";
-        reportError(token, err_type::error, errMsg);
-        p_declaration(exists);
-      } else {
-        scanner.undo(); // if we find a declaration, undo the consume
+    if (!exists) { // DECLARATIONS ALWAYS END WITH 'BEGIN'
+      // so if there was no declaration, the next token has to be 'begin'
+      // consume all invalid tokens until next declaration (or end of declarations) 
+      if (a_getTok(token)) { 
+        if (!check(token, token_type::type_keyword, key_type::key_begin)) {
+          std::string errMsg = "Incorrect start token in <declaration>";
+          reportError(token, err_type::error, errMsg);
+          decN = p_declaration(exists, declared, scope, globalFlag); // recursive consume all
+        } else { // if we find a declaration, undo the consume
+          scanner.undo();
+        }
+      } else { // everything has been consumed, file ended
+        return "";
       }
     }
+    return decN;
   }
+  return "";
 }
 
-void p_procedure_declaration(bool &exists) {
+std::string p_procedure_declaration(bool &exists, symbol* declared, symbol_table &scope) {
   if (!abortFlag) {
    
-    
+    // TODO codegen
     p_procedure_header(exists); 
     
     if (exists) { // if the procedure header exists then parse body
+      // TODO create new procedure and assign it to declared
       p_procedure_body(); 
     }
   }
+  return "";
 }
 
 void p_procedure_header(bool &exists) {
@@ -462,12 +496,14 @@ void p_parameter_list(bool &exists) {
     }
   }
 }
-
+//, symbol* decParam, symbol_table &scope
 void p_parameter(bool &exists) {
   if (!abortFlag) {
     tok token;
     
-    p_variable_declaration(exists);
+    // TODO temp code
+    symbol* decParam; symbol_table scope;
+    p_variable_declaration(exists, decParam, scope);
     
     if (exists && a_getTok(token)) { // in/out/inout
       if (check(token, token_type::type_keyword, key_type::key_in)) {
@@ -491,7 +527,9 @@ void p_procedure_body() {
     
     bool exists = false;
     do { // declaration repeat
-      p_declaration(exists); 
+      // TODO temp code
+      symbol* declared; symbol_table scope; bool globalFlag = false;
+      p_declaration(exists, declared, scope, globalFlag); 
       
       if (exists && a_getTok(token) && // ;
           !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
@@ -536,10 +574,11 @@ void p_procedure_body() {
   }
 }
 
-void p_variable_declaration(bool &exists) {
+std::string p_variable_declaration(bool &exists, symbol* declared, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
     
+    // TODO codegen
     p_type_mark(exists);
     
     if (exists) {
@@ -549,6 +588,8 @@ void p_variable_declaration(bool &exists) {
         std::string errMsg = "Missing 'identifier' from <variable_declaration>";
         reportError(token, err_type::error, errMsg);
       }
+      
+      // TODO create new obj and assign it to declared
       
       bool array = false;
       if (a_getTok(token)) { // optional [
@@ -580,6 +621,7 @@ void p_variable_declaration(bool &exists) {
       }
     }
   }
+  return "";
 }
 
 void p_type_mark(bool &exists) {
