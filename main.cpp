@@ -111,18 +111,31 @@ bool a_getTok(tok &token) {
 }
 
 bool check(tok &token, token_type type, int sec_type) {
+  if (token.tokenType != type) {
+    std::cout << scanner.typeToString(token.tokenType);
+    std::cout << " vs " << scanner.typeToString(type);
+    std::cout << " FALSE\n";
+    return false;
+  }
+  
   int tokenSecondary;
   switch (type) {
     case type_symb:
       tokenSecondary = token.s;
+      std::cout << scanner.symbToString(token.s);
+      std::cout << " vs " << scanner.symbToString((symb_type)sec_type);
       break;
     case type_keyword:
       tokenSecondary = token.k;
+      std::cout << scanner.keywToString(token.k);
+      std::cout << " vs " << scanner.keywToString((key_type)sec_type);
       break;
   }
   if (tokenSecondary != sec_type) {
+    std::cout << " FALSE\n";
     return false;
   }
+  std::cout << " TRUE\n";
   return true;
 }
 
