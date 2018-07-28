@@ -171,7 +171,7 @@ void p_program(bool &success) {
     }
   } else {
     std::string errMsg = "Missing . from <program>";
-    reportError(token, err_type::error, errMsg);
+    reportError(token, err_type::warning, errMsg);
   }
 }
 
@@ -617,6 +617,7 @@ void p_assignment_statement(bool &success, bool &exists) {
         reportError(token, err_type::error, errMsg);
       } else {
         exists = false;
+        scanner.undo();
       }
     }
     
@@ -899,6 +900,9 @@ void p_identifier(bool &success, bool &exists) {
       exists = false;
       scanner.undo();
     }
+    if (exists) {
+      std::cout << "is identifier\n";
+    }
   }
 }
 
@@ -1176,8 +1180,10 @@ void p_number(bool &success, bool &exists) {
     if (getTok(token)) {
       if (token.tokenType == token_type::type_int) {
         // handle int
+        std::cout << "is int\n";
       } else if (token.tokenType == token_type::type_float) {
         // handle float
+        std::cout << "is float\n";
       } else { // number does not exist
         exists = false;
         scanner.undo();
@@ -1196,6 +1202,9 @@ void p_string(bool &success, bool &exists) {
       exists = false;
       scanner.undo();
     }
+    if (exists) {
+      std::cout << "is string\n";
+    }
   }
 }
 
@@ -1208,6 +1217,9 @@ void p_char(bool &success, bool &exists) {
         !(token.tokenType == token_type::type_char)) {
       exists = false;
       scanner.undo();
+    }
+    if (exists) {
+      std::cout << "is char\n";
     }
   }
 }
