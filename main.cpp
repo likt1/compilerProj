@@ -25,7 +25,6 @@ error_list errList;
 // error flags (parse error list and if there is a large error then disable
 bool genCode = true;
 bool abortFlag = false;
-bool reqExists = false;
 // lexer
 lexer scanner;
 
@@ -173,6 +172,7 @@ void p_program_header(bool &success) {
     eat_misspelling(token);
   }
   
+  bool reqExists = false;
   p_identifier(suc, reqExists); // unused suc
   if (!reqExists) {
     std::string errMsg = "Missing 'identifier' from <program_header>";
@@ -291,6 +291,7 @@ void p_procedure_header(bool &success, bool &exists) {
     }
     
     if (exists) {
+      bool reqExists = false;
       p_identifier(suc, reqExists);
       if (!reqExists) {
         std::string errMsg = "Missing 'identifier' from <procedure_header>";
@@ -431,6 +432,7 @@ void p_variable_declaration(bool &success, bool &exists) {
     p_type_mark(suc, exists);
     
     if (exists) {
+      bool reqExists = false;
       p_identifier(suc, reqExists);
       if (!reqExists) {
         std::string errMsg = "Missing 'identifier' from <variable_declaration>";
@@ -506,6 +508,7 @@ void p_lower_bound(bool &success) {
       }
     }
     
+    bool reqExists = false;
     p_number(suc, reqExists);
     if (!reqExists) {
       std::string errMsg = "Missing 'number' from <lower_bound>";
@@ -527,6 +530,7 @@ void p_upper_bound(bool &success) {
       }
     }
     
+    bool reqExists = false;
     p_number(suc, reqExists);
     if (!reqExists) {
       std::string errMsg = "Missing 'number' from <upper_bound>";
@@ -668,8 +672,9 @@ void p_if_statement(bool &success, bool &exists) {
         scanner.undo();
       }
       
-      p_expression(suc, exists);
-      if (!exists) {
+      bool reqExists = false;
+      p_expression(suc, reqExists);
+      if (!reqExists) {
         std::string errMsg = "Missing <expression> from <if_statement>";
         reportError(token, err_type::error, errMsg);
       }
@@ -689,23 +694,24 @@ void p_if_statement(bool &success, bool &exists) {
         scanner.undo();
       }
       
-      p_statement(suc, exists); // first statement
-      if (!exists) {
+      bool sExists = false;
+      p_statement(suc, sExists); // first statement
+      if (!sExists) {
         std::string errMsg = "Missing statements from <if_statement><then>";
         reportError(token, err_type::error, errMsg);
       }
         
-      if (exists && a_getTok(token) && // ;
+      if (sExists && a_getTok(token) && // ;
           !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
         std::string errMsg = "Missing ';' from <if_statement><then><statement>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
       }
       
-      while (exists) { // statement repeat
-        p_statement(suc, exists); // unused suc
+      while (sExists) { // statement repeat
+        p_statement(suc, sExists); // unused suc
         
-        if (exists && a_getTok(token) && // ;
+        if (sExists && a_getTok(token) && // ;
             !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
           std::string errMsg = "Missing ';' from <if_statement><then><statement>";
           reportError(token, err_type::error, errMsg);
@@ -723,23 +729,23 @@ void p_if_statement(bool &success, bool &exists) {
       }
       
       if (elseFlag) {
-        p_statement(suc, exists); // first statement
-        if (!exists) {
+        p_statement(suc, sExists); // first statement
+        if (!sExists) {
           std::string errMsg = "Missing statements from <if_statement><else>";
           reportError(token, err_type::error, errMsg);
         }
           
-        if (exists && a_getTok(token) && // ;
+        if (sExists && a_getTok(token) && // ;
             !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
           std::string errMsg = "Missing ';' from <if_statement><else><statement>";
           reportError(token, err_type::error, errMsg);
           scanner.undo();
         }
         
-        while (exists) { // statement repeat
-          p_statement(suc, exists); // unused suc
+        while (sExists) { // statement repeat
+          p_statement(suc, sExists); // unused suc
           
-          if (exists && a_getTok(token) && // ;
+          if (sExists && a_getTok(token) && // ;
               !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
             std::string errMsg = "Missing ';' from <if_statement><else><statement>";
             reportError(token, err_type::error, errMsg);
@@ -787,8 +793,9 @@ void p_loop_statement(bool &success, bool &exists) {
         scanner.undo();
       }
       
-      p_assignment_statement(suc, exists);
-      if (!exists) {
+      bool reqExists = false;
+      p_assignment_statement(suc, reqExists);
+      if (!reqExists) {
         std::string errMsg = "Missing assignment statement from <loop_statement>";
         reportError(token, err_type::error, errMsg);
       }
@@ -800,8 +807,8 @@ void p_loop_statement(bool &success, bool &exists) {
         scanner.undo();
       }
       
-      p_expression(suc, exists);
-      if (!exists) {
+      p_expression(suc, reqExists);
+      if (!reqExists) {
         std::string errMsg = "Missing <expression> from <loop_statement>";
         reportError(token, err_type::error, errMsg);
       }
@@ -813,23 +820,24 @@ void p_loop_statement(bool &success, bool &exists) {
         scanner.undo();
       }
       
-      p_statement(suc, exists); // first statement
-      if (!exists) {
+      bool sExists = false;
+      p_statement(suc, sExists); // first statement
+      if (!sExists) {
         std::string errMsg = "Missing statements from <loop_statement>";
         reportError(token, err_type::error, errMsg);
       }
         
-      if (exists && a_getTok(token) && // ;
+      if (sExists && a_getTok(token) && // ;
           !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
         std::string errMsg = "Missing ';' from <loop_statement><statement>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
       }
       
-      while (exists) { // statement repeat
-        p_statement(suc, exists); // unused suc
+      while (sExists) { // statement repeat
+        p_statement(suc, sExists); // unused suc
         
-        if (exists && a_getTok(token) && // ;
+        if (sExists && a_getTok(token) && // ;
             !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
           std::string errMsg = "Missing ';' from <loop_statement><statement>";
           reportError(token, err_type::error, errMsg);
@@ -1037,8 +1045,9 @@ void p_factor(bool &success, bool &exists) {
     }
     
     if (exists) {
-      p_expression(suc, exists);
-      if (!exists) {
+      bool reqExists = false;
+      p_expression(suc, reqExists);
+      if (!reqExists) {
         std::string errMsg = "Missing <expression> from <factor><expression>";
         reportError(token, err_type::error, errMsg);
       }
