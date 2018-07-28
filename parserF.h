@@ -17,10 +17,12 @@ void p_program_body(std::string);
 
 // No type check needed, only creation of symbols (vars and procedures)
 // exists safe
-std::string p_declaration(bool &, symbol*, symbol_table &, bool &);
+std::string p_declaration(bool &, 
+    symbol* &, symbol_table &, bool &);
 
 // exists safe
-std::string p_procedure_declaration(bool &, symbol*, symbol_table &);
+std::string p_procedure_declaration(bool &, 
+    symbol* &, symbol_table &);
 
 // exists checker
 void p_procedure_header(bool &);
@@ -34,14 +36,15 @@ void p_parameter(bool &);
 void p_procedure_body();
 
 // exists safe
-std::string p_variable_declaration(bool &, symbol*, symbol_table &);
+std::string p_variable_declaration(bool &, 
+    symbol* &, symbol_table &); // type check complete
 
 // exists checker
-void p_type_mark(bool &);
+obj_type p_type_mark(bool &); // type check complete
 
-void p_lower_bound();
+void p_lower_bound(bool &, int &); // type check complete
 
-void p_upper_bound();
+void p_upper_bound(bool &, int &); // type check complete
 
 // exists safe
 void p_statement(bool &);
@@ -65,7 +68,7 @@ void p_loop_statement(bool &);
 void p_return_statement(bool &);
 
 // cannot error | exists checker
-std::string p_identifier(bool &);
+std::string p_identifier(bool &); // type check complete
 
 // exists safe
 void p_expression(bool &);
@@ -101,7 +104,7 @@ void p_name(bool &);
 void p_argument_list(bool &);
 
 // cannot error | exists checker
-void p_number(bool &);
+factor p_number(bool &); // type check complete
 
 // cannot error | exists checker
 void p_string(bool &);

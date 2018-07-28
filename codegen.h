@@ -18,7 +18,8 @@ enum obj_type {
   obj_string,
   obj_bool,
   obj_char,
-  obj_temp
+  obj_temp,
+  obj_none
 };
 
 enum st_type {
@@ -47,7 +48,6 @@ enum op_type {
 struct factor {
   obj_type objType;
   std::string name;
-  bool neg;
   union {
     int i;
     float f;
@@ -74,8 +74,9 @@ public:
   op_type op;
 };
 
-#define symbol_table std::unordered_map<std::string, symbol>
-#define symbol_elm std::pair<std::string, symbol>
+// TODO clean up symbol_tables
+#define symbol_table std::unordered_map<std::string, symbol*>
+#define symbol_elm std::pair<std::string, symbol*>
 #define statements_vector std::vector<statement>
 #define expression_vector std::vector<expression>
 

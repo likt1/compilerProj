@@ -235,6 +235,8 @@ void print_errors() {
  *     declares that are otherwise correct but are missing only the semicolon will 
  *     NOT be added to the respective block symbol table or statement list and will 
  *     cause other places to throw uninit or out of scope identifier type check errors.
+ *   When dealing with an upper bound that's smaller than the lower bound, switch 
+ *     the two values.  Parsing and type checking is still legal.
  */
 
 // Function definitions exist in header parserF.h
@@ -280,7 +282,7 @@ std::string p_program_header() {
     std::string errMsg = "Missing 'identifier' from <program_header>";
     reportError(token, err_type::error, errMsg);
   }
-  procedure program; program.tblType = tbl_type::tbl_proc;
+  procedure* program = new procedure(); program->tblType = tbl_type::tbl_proc;
   symbol_elm elem (progN, program);
   globalTable.insert(elem);
   
@@ -297,13 +299,12 @@ std::string p_program_header() {
 void p_program_body(std::string progN) {
   if (!abortFlag) {
     tok token; symbol_table::iterator program = globalTable.find(progN);
-    procedure* programObj = (procedure*) &(program->second);
+    procedure* programObj = (procedure*) program->second;
     
     bool exists = false;
     do { // declaration repeat
-      symbol* declared; bool globalFlag = false;
+      symbol* declared; bool globalFlag;
       std::string decN = p_declaration(exists, declared, programObj->local.scope, globalFlag);
-      symbol_elm elem (decN, *declared);
       
       bool addFlag = true;
       if (exists && a_getTok(token) && // ;
@@ -315,13 +316,13 @@ void p_program_body(std::string progN) {
       }
       
       if (addFlag) {
-        if (decN.size() > 0) { // if empty, declaration fired off a name conflict already
+        if (decN.size() > 0) { // if empty, declaration fired off an error already
+          symbol_elm elem (decN, declared); // declared is not NULL so make element
           if (!globalFlag) {
             programObj->local.scope.insert(elem);
           } else {
             globalTable.insert(elem);
           }
-          delete declared;
         }
       }
     } while (exists && !abortFlag);
@@ -362,7 +363,9 @@ void p_program_body(std::string progN) {
   }
 }
 
-std::string p_declaration(bool &exists, symbol* declared, symbol_table &scope, bool &globalFlag) {
+// will return the name of the identifier of the object with the object in 'declared'
+// if there are errors, name will be "" and declared is NULL
+std::string p_declaration(bool &exists, symbol* &declared, symbol_table &scope, bool &globalFlag) {
   if (!abortFlag) {
     tok token;
     
@@ -377,10 +380,18 @@ std::string p_declaration(bool &exists, symbol* declared, symbol_table &scope, b
     
     // Procedure or variable?
     std::string decN;
-    decN = p_procedure_declaration(exists, declared, scope);
+    if (globalFlag) { // TODO codegen
+      decN = p_procedure_declaration(exists, declared, globalTable);
+    } else {
+      decN = p_procedure_declaration(exists, declared, scope);
+    }
     
     if (!exists) { // if it wasn't a procedure then it's a variable
-      decN = p_variable_declaration(exists, declared, scope); 
+      if (globalFlag) {
+        decN = p_variable_declaration(exists, declared, globalTable); 
+      } else {
+        decN = p_variable_declaration(exists, declared, scope); 
+      }
     } // if exists is still false then a declaration doesn't exist
     
     if (globalFlag && !exists) { // global with no declaration
@@ -408,7 +419,7 @@ std::string p_declaration(bool &exists, symbol* declared, symbol_table &scope, b
   return "";
 }
 
-std::string p_procedure_declaration(bool &exists, symbol* declared, symbol_table &scope) {
+std::string p_procedure_declaration(bool &exists, symbol* &declared, symbol_table &scope) {
   if (!abortFlag) {
    
     // TODO codegen
@@ -463,6 +474,8 @@ void p_procedure_header(bool &exists) {
         scanner.undo();
       }
     }
+  } else { // abort, no more file, therefore cannot exist
+    exists = false;
   }
 }
 
@@ -574,22 +587,31 @@ void p_procedure_body() {
   }
 }
 
-std::string p_variable_declaration(bool &exists, symbol* declared, symbol_table &scope) {
+std::string p_variable_declaration(bool &exists, symbol* &declared, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
     
-    // TODO codegen
-    p_type_mark(exists);
+    obj_type type = p_type_mark(exists);
     
     if (exists) {
-      bool reqExists = false;
-      p_identifier(reqExists);
+      bool reqExists = false, suc = true;
+      std::string varN = p_identifier(reqExists);
       if (!reqExists) {
         std::string errMsg = "Missing 'identifier' from <variable_declaration>";
         reportError(token, err_type::error, errMsg);
+        suc = false;
       }
       
-      // TODO create new obj and assign it to declared
+      // create new obj
+      object* var = new object();
+      var->tblType = tbl_type::tbl_obj;
+      var->objType = type;
+      var->ub = 0; var->lb = 0;
+      if (scope.count(varN) != 0) {
+        std::string errMsg = "Identifier name already exists in current scope from <variable_declaration>";
+        reportError(token, err_type::error, errMsg);
+        suc = false;
+      }
       
       bool array = false;
       if (a_getTok(token)) { // optional [
@@ -601,54 +623,73 @@ std::string p_variable_declaration(bool &exists, symbol* declared, symbol_table 
       }
       
       if (array) {
-        p_lower_bound();
+        p_lower_bound(suc, var->lb);
         
         if (a_getTok(token) && // :
             !check(token, token_type::type_symb, symb_type::symb_colon)) {
           std::string errMsg = "Missing ':' from <variable_declaration>";
           reportError(token, err_type::error, errMsg);
           scanner.undo();
+          suc = false;
         }
         
-        p_upper_bound();
+        p_upper_bound(suc, var->ub);
         
         if (a_getTok(token) && // ]
             !check(token, token_type::type_symb, symb_type::symb_cl_bracket)) {
           std::string errMsg = "Missing ']' from <variable_declaration>";
           reportError(token, err_type::error, errMsg);
           scanner.undo();
+          suc = false;
         }
+        
+        if (var->ub < var->lb) {
+          int tmp = var->ub;
+          var->ub = var->lb;
+          var->lb = tmp;
+        }
+      }
+      
+      if (suc) { // only if everything passed
+        declared = (symbol*) var; // assign obj to output
+        return varN; // return name
+      } else {
+        delete var;
       }
     }
   }
   return "";
 }
 
-void p_type_mark(bool &exists) {
+obj_type p_type_mark(bool &exists) {
   if (!abortFlag) {
     tok token;
     
     exists = true;
     if (a_getTok(token)) { // refer to type_mark in specification
       if (check(token, token_type::type_keyword, key_type::key_integer)) {
-        // integer
+        return obj_type::obj_integer; // integer
       } else if(check(token, token_type::type_keyword, key_type::key_float)) {
-        // float
+        return obj_type::obj_float; // float
       } else if(check(token, token_type::type_keyword, key_type::key_string)) {
-        // string
+        return obj_type::obj_string; // string
       } else if(check(token, token_type::type_keyword, key_type::key_bool)) {
-        // bool
+        return obj_type::obj_bool; // bool
       } else if(check(token, token_type::type_keyword, key_type::key_char)) {
-        // char
+        return obj_type::obj_char; // char
       } else {
         scanner.undo();
         exists = false;
+        return obj_type::obj_none;
       }
     }
+  } else {
+    exists = false;
   }
 }
 
-void p_lower_bound() {
+// suc to control if the above declare should succeed
+void p_lower_bound(bool &suc, int &val) {
   if (!abortFlag) {
     tok token;
     
@@ -662,15 +703,32 @@ void p_lower_bound() {
     }
     
     bool reqExists = false;
-    p_number(reqExists);
+    factor getObj = p_number(reqExists);
     if (!reqExists) {
       std::string errMsg = "Missing 'number' from <lower_bound>";
       reportError(token, err_type::error, errMsg);
+      suc = false;
+    } else {
+      // TYPECHECK only accept ints
+      if (getObj.objType == obj_type::obj_integer) {
+        if (!neg) {
+          val = getObj.i;
+        } else {
+          val = -getObj.i;
+        }
+      } else {
+        std::string errMsg = "Illegal float in <lower_bound>";
+        reportError(token, err_type::error, errMsg);
+        suc = false;
+      }
     }
+  } else {
+    suc = false;
   }
 }
 
-void p_upper_bound() {
+// suc to control if the above declare should succeed
+void p_upper_bound(bool &suc, int &val) {
   if (!abortFlag) {
     tok token;
     
@@ -684,11 +742,27 @@ void p_upper_bound() {
     }
     
     bool reqExists = false;
-    p_number(reqExists);
+    factor getObj = p_number(reqExists);
     if (!reqExists) {
       std::string errMsg = "Missing 'number' from <upper_bound>";
       reportError(token, err_type::error, errMsg);
+      suc = false;
+    } else {
+      // TYPECHECK only accept ints
+      if (getObj.objType == obj_type::obj_integer) {
+        if (!neg) {
+          val = getObj.i;
+        } else {
+          val = -getObj.i;
+        }
+      } else {
+        std::string errMsg = "Illegal float in <upper_bound>";
+        reportError(token, err_type::error, errMsg);
+        suc = false;
+      }
     }
+  } else {
+    suc = false;
   }
 }
 
@@ -1062,6 +1136,8 @@ std::string p_identifier(bool &exists) {
       print_dbg_message("is identifier\n");
       return token.name;
     }
+  } else {
+    exists = false;
   }
   return "";
 }
@@ -1349,24 +1425,30 @@ void p_argument_list(bool &exists) {
   }
 }
 
-void p_number(bool &exists) {
+factor p_number(bool &exists) {
+  factor out;
   if (!abortFlag) {
     tok token;
     
     exists = true;
     if (getTok(token)) {
       if (token.tokenType == token_type::type_int) {
-        // handle int
+        out.objType = obj_type::obj_integer; // handle int
+        out.i = token.i;
         print_dbg_message("is int\n");
       } else if (token.tokenType == token_type::type_float) {
-        // handle float
+        out.objType = obj_type::obj_float; // handle float
+        out.f = token.f;
         print_dbg_message("is float\n");
       } else { // number does not exist
         exists = false;
         scanner.undo();
       }
     }
+  } else {
+    exists = false;
   }
+  return out;
 }
 
 void p_string(bool &exists) {
@@ -1401,6 +1483,22 @@ void p_char(bool &exists) {
   }
 }
 
+void printSymbolTable(symbol_table &tbl) {
+  for (symbol_table::iterator it = tbl.begin(); it != tbl.end(); ++it) {
+    std::cout << it->first << ": " << it->second->tblType;
+    
+    if (it->second->tblType == tbl_type::tbl_proc) {
+      procedure* proc = (procedure*) it->second;
+      std::cout << " " << proc->local.scope.size() << "\n";
+      printSymbolTable(proc->local.scope);
+    } else {
+      object* x = (object*) it->second;
+      std::cout << "\n  " << " " << x->objType << " " << x->lb << " " 
+                << x->ub << " " << "\n";
+    }
+  }
+}
+
 //====================== Main ======================//
 int main(int argc, const char *argv[]) {
   if (argc == 2) {
@@ -1412,7 +1510,26 @@ int main(int argc, const char *argv[]) {
       p_program();
       print_errors();
       
-      std::cout << globalTable.size() << "\n";
+      // for recursiveFib.src
+      /* recursivefib
+        global integer x;
+        integer i;
+        integer max;
+      */
+      
+      // for vectorOps.src
+      /* vectorops
+        integer indx;
+        integer size;
+        char x;
+        float vect1[-5:5];
+        float vect2[-5:5];
+        float vect3[-2:8];
+        float vect4[0:10];
+        float vect5[10:20];
+      */
+      
+      printSymbolTable(globalTable);
       
     } else {
       tok token;
