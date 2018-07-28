@@ -2,26 +2,16 @@
 
 #include "lexer.h"
 #include "parserF.h"
+#include "codegen.h"
 
 #include <stack>
 
 #define DEBUG_FLAG false
 #define SCANNER_ONLY false
 
-#define symbol_table std::unordered_map<const char*, token_type>
-// define a symbol table list to work with scoping?
-// we will always need a local scope and global scope, while there is a block
-//   list, only check first and last ones
-
-// job object for a sample job TODO
-struct record {
-  token_type tokenType;
-};
-
 //====================== Globals ======================//
 // symbol tables
-symbol_table globalST;
-std::stack<symbol_table> localSTs;
+symbol_table globalTable;
 // error list
 error_list errList;
 // error flags (parse error list and if there is a large error then disable
@@ -189,7 +179,7 @@ void eat_misspelling(tok &token) {
 void print_errors() {
   if (errList.size() == 0) {
     std::cout << "No errors or warnings detected\n";
-  } else { // TODO compress errors on single lines (with the same message)
+  } else {
     int linePos = -1; bool statement = false, consume = false;
     for (error_list::iterator i = errList.begin() ; i != errList.end(); ++i) {
     
