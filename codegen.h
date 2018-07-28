@@ -1,14 +1,18 @@
 #ifndef CODEGEN_H
 #define CODEGEN_H
 
+enum tbl_type {
+  tbl_proc,
+  tbl_obj
+};
+
 enum obj_type {
   obj_integer,
   obj_float,
   obj_string,
   obj_bool,
   obj_char,
-  obj_temp,
-  obj_id
+  obj_temp
 };
 
 enum st_type {
@@ -16,7 +20,7 @@ enum st_type {
   st_if,
   st_loop,
   st_return,
-  st_proc
+  st_proc_call
 };
 
 enum op_type {
@@ -49,7 +53,7 @@ struct factor {
 
 class symbol {
 public:
-  obj_type objType;
+  tbl_type tblType;
 };
 
 class statement {
@@ -73,33 +77,33 @@ class block {
   statements_vector statements;
 };
 
-class procedure : symbol {
+class procedure : public symbol {
 public:
   block local;
 };
 
-class object : symbol {
+class object : public symbol {
 public:
-  std::string name;
+  obj_type objType;
   int lb;
   int ub;
 };
 
-class assign_statement : statement {
+class assign_statement : public statement {
 public:
   object dest;
   expression_vector destLoc;
   expression_vector assignExpression;
 };
 
-class if_statement : statement {
+class if_statement : public statement {
 public:
   expression_vector test;
   block local;
   block elseLocal;
 };
 
-class loop_statement : statement {
+class loop_statement : public statement {
 public:
   //assign_statement assignment;
   expression_vector contExpression;
@@ -107,7 +111,7 @@ public:
 };
 
 // ??
-class return_statement : statement {
+class return_statement : public statement {
 public:
   
 };
