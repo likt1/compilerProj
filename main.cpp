@@ -113,8 +113,19 @@ bool a_getTok(tok &token) {
 bool check(tok &token, token_type type, int sec_type) {
   if (token.tokenType != type) {
     std::cout << scanner.typeToString(token.tokenType);
-    std::cout << " vs " << scanner.typeToString(type);
-    std::cout << " FALSE\n";
+    std::cout << " vs [" << scanner.typeToString(type);
+    switch (type) {
+      case type_symb:
+        std::cout << "|" << scanner.symbToString((symb_type)sec_type);
+        break;
+      case type_keyword:
+        std::cout << "|" << scanner.keywToString((key_type)sec_type);
+        break;
+      case type_illegal:
+        std::cout << "|" << scanner.illgToString((ill_type)sec_type);
+        break;
+    }
+    std::cout << "] FALSE\n";
     return false;
   }
   
@@ -129,6 +140,11 @@ bool check(tok &token, token_type type, int sec_type) {
       tokenSecondary = token.k;
       std::cout << scanner.keywToString(token.k);
       std::cout << " vs " << scanner.keywToString((key_type)sec_type);
+      break;
+    case type_illegal:
+      tokenSecondary = token.il;
+      std::cout << scanner.illgToString(token.il);
+      std::cout << " vs " << scanner.illgToString((ill_type)sec_type);
       break;
   }
   if (tokenSecondary != sec_type) {
@@ -147,6 +163,11 @@ void eat_misspelling(tok &token) {
   if (token.tokenType != token_type::type_id) { // if not misspelling
     scanner.undo(); // do not eat
   } // otherwise do nothing (eat)
+}
+
+// remember, all errors on a single line (with same message) should be condensed into 1
+void print_errors() {
+  
 }
 
 // parser paradigm
@@ -274,6 +295,19 @@ void p_declaration(bool &success, bool &exists) {
     if (global_obj && !exists) { // global with no declaration
       std::string errMsg = "Orphan 'global' in <declaration>";
       reportError(token, err_type::error, errMsg);
+    }
+    
+    if (!exists) { // DECLARATIONS ALWAYS END IN 'BEGIN'
+      // so if there was no statement, the next token has to be 'begin'
+      getTok(token); // consume all invalid tokens until next declaration (or end of declarations) 
+      if (!check(token, token_type::type_keyword, key_type::key_begin)) {
+        // unknown token in declaration
+        std::string errMsg = "Incorrect start token in <declaration>";
+        reportError(token, err_type::error, errMsg);
+        p_declaration(suc, exists);
+      } else {
+        scanner.undo(); // if we find a declaration, undo the consume
+      }
     }
   }
 }
@@ -554,7 +588,7 @@ void p_upper_bound(bool &success) {
 
 void p_statement(bool &success, bool &exists) {
   if (!abortFlag) {
-    bool suc = true;
+    tok token; bool suc = true;
     
     p_assignment_statement(suc, exists);
     if (!exists) {
@@ -569,6 +603,20 @@ void p_statement(bool &success, bool &exists) {
     if (!exists) {
       p_procedure_call(suc, exists);
     } // if exists is still false, a statement does not exist
+    
+    if (!exists) { // STATEMENTS ALWAYS END IN EITHER 'ELSE' OR 'END'
+      // so if there was no statement, the next token has to be 'else' or 'end'
+      getTok(token); // consume all invalid tokens until next statement (or end of statements) 
+      if (!check(token, token_type::type_keyword, key_type::key_end)
+          && !check(token, token_type::type_keyword, key_type::key_else)) {
+        // unknown token in declaration
+        std::string errMsg = "Incorrect start token in <statement>";
+        reportError(token, err_type::error, errMsg);
+        p_statement(suc, exists);
+      } else {
+        scanner.undo(); // if we find a statement, undo the consume
+      }
+    }
   }
 }
 
@@ -612,8 +660,10 @@ void p_assignment_statement(bool &success, bool &exists) {
       tok lookahead; peekTok(lookahead); // check = or :=
       if (check(lookahead, token_type::type_symb, symb_type::symb_assign)) {
         getTok(token);
-      } else if (check(lookahead, token_type::type_illegal, ill_type::ill_equals)) {
-        std::string errMsg = "Malformed '!=' from <assignment_statement>";
+      } else if (check(lookahead, token_type::type_illegal, ill_type::ill_equals) ||
+                 check(lookahead, token_type::type_symb, symb_type::symb_equals)) {
+        std::string errMsg = "Malformed ':=' from <assignment_statement>";
+        getTok(token);
         reportError(token, err_type::error, errMsg);
       } else {
         exists = false;
@@ -861,14 +911,14 @@ void p_loop_statement(bool &success, bool &exists) {
       
       if (a_getTok(token) && // end
           !check(token, token_type::type_keyword, key_type::key_end)) {
-        std::string errMsg = "Missing 'end' from <if_statement>";
+        std::string errMsg = "Missing 'end' from <loop_statement>";
         reportError(token, err_type::error, errMsg);
         eat_misspelling(token);
       }
       
       if (a_getTok(token) && // for
           !check(token, token_type::type_keyword, key_type::key_for)) {
-        std::string errMsg = "Missing 'for' from <if_statement><end>";
+        std::string errMsg = "Missing 'for' from <loop_statement><end>";
         reportError(token, err_type::error, errMsg);
         //eat_misspelling(token); // statements after end for can start with an identifier
         scanner.undo();
@@ -937,8 +987,18 @@ void p_expression_pr(bool &success, bool &exists) {
         // handle straight
         p_arithOp(suc, exists);
         p_expression_pr(suc, exists);
-      } else {
+      } else { // if it is a symbol [not )], than assume expression (with undef symb) and eat
         scanner.undo();
+        /*if (!token.tokenType == token_type::type_symb ||
+            check(token, token_type::type_symb, symb_type::symb_op_paren)) {
+          scanner.undo();
+        } else {
+          std::string errMsg = "Illegal symbol in <expression>";
+          reportError(token, err_type::error, errMsg);
+          p_arithOp(suc, exists);
+          p_expression_pr(suc, exists);
+        }
+        */
       }
     }
   }
@@ -1009,6 +1069,13 @@ void p_relation_pr(bool &success, bool &exists) {
         p_relation_pr(suc, exists);
       } else if (check(token, token_type::type_symb, symb_type::symb_not_equals)) {
         // handle not equals
+        p_term(suc, exists);
+        p_relation_pr(suc, exists);
+      } else if (check(token, token_type::type_symb, symb_type::symb_assign) ||
+                 token.tokenType == token_type::type_illegal) {
+        // handle illegal
+        std::string errMsg = "Illegal symb in <expression>";
+        reportError(token, err_type::error, errMsg);
         p_term(suc, exists);
         p_relation_pr(suc, exists);
       } else {
