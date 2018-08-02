@@ -7,29 +7,11 @@ enum tbl_type {
   tbl_param
 };
 
-const char* tblTypeToString(tbl_type type) {
-  switch (type) {
-    case tbl_proc: return "procedure";
-    case tbl_obj: return "object";
-    case tbl_param: return "parameter";
-    default: return "unknown";
-  }
-}
-
 enum param_type {
   param_in,
   param_out,
   param_inout
 };
-
-const char* paramTypeToString(param_type type) {
-  switch (type) {
-    case param_in: return "in";
-    case param_out: return "out";
-    case param_inout: return "inout";
-    default: return "unknown";
-  }
-}
 
 enum obj_type {
   obj_integer,
@@ -37,24 +19,11 @@ enum obj_type {
   obj_string,
   obj_bool,
   obj_char,
-  obj_temp,
+  obj_id,
   obj_none
 };
 
-const char* objTypeToString(obj_type type) {
-  switch (type) {
-    case obj_integer: return "integer";
-    case obj_float: return "float";
-    case obj_string: return "string";
-    case obj_bool: return "bool";
-    case obj_char: return "char";
-    case obj_temp: return "temp";
-    case obj_none: return "none";
-    default: return "unknown";
-  }
-}
-
-enum st_type {
+/*enum st_type {
   st_assign,
   st_if,
   st_loop,
@@ -75,17 +44,25 @@ enum op_type {
   op_not_equals,  // !=
   op_multi,       // *
   op_div,         // /
+};*/
+
+struct nameObj {
+  std::string name;
+  obj_type varType;
+  bool idx;
+  std::string boundsPos;
+  int boundsIntPos;
 };
 
 struct factor {
   obj_type objType;
-  std::string name;
+  nameObj obj;
+  std::string s;
   union {
     int i;
     float f;
     char c;
     bool b;
-    int tmp;
   };
 };
 
@@ -94,7 +71,7 @@ public:
   tbl_type tblType;
 };
 
-class statement {
+/*class statement {
 public:
   st_type stateType;
 };
@@ -104,18 +81,17 @@ public:
   factor left;
   factor right;
   op_type op;
-};
+};*/
 
-// TODO clean up symbol_tables
 #define symbol_table std::unordered_map<std::string, symbol*>
 #define symbol_elm std::pair<std::string, symbol*>
-#define statements_vector std::vector<statement>
-#define expression_vector std::vector<expression>
+//#define statements_vector std::vector<statement>
+//#define expression_vector std::vector<expression>
 
 class block {
 public:
   symbol_table scope;
-  statements_vector statements;
+  //statements_vector statements;
 };
 
 class procedure : public symbol {
@@ -133,9 +109,10 @@ public:
 class param : public object {
 public:
   param_type paramType;
+  int order;
 };
 
-class assign_statement : public statement {
+/*class assign_statement : public statement {
 public:
   object dest;
   expression_vector destLoc;
@@ -160,7 +137,38 @@ public:
 class return_statement : public statement {
 public:
   
-};
+};*/
+
+const char* tblTypeToString(tbl_type type) {
+  switch (type) {
+    case tbl_proc: return "procedure";
+    case tbl_obj: return "object";
+    case tbl_param: return "parameter";
+    default: return "unknown";
+  }
+}
+
+const char* paramTypeToString(param_type type) {
+  switch (type) {
+    case param_in: return "in";
+    case param_out: return "out";
+    case param_inout: return "inout";
+    default: return "unknown";
+  }
+}
+
+const char* objTypeToString(obj_type type) {
+  switch (type) {
+    case obj_integer: return "integer";
+    case obj_float: return "float";
+    case obj_string: return "string";
+    case obj_bool: return "bool";
+    case obj_char: return "char";
+    case obj_id: return "id";
+    case obj_none: return "none";
+    default: return "unknown";
+  }
+}
 
 #endif
 

@@ -10,7 +10,7 @@
 
 //====================== Globals ======================//
 // symbol tables
-symbol_table globalTable;
+symbol_table globalScope;
 // error list
 error_list errList;
 // error flags (parse error list and if there is a large error then disable
@@ -239,6 +239,7 @@ void print_errors() {
  *     the two values.  Parsing and type checking is still legal.
  */
 
+// TODO check that all error messages return valid token to the error throwing code
 // Function definitions exist in header parserF.h
 //====================== Parser functions ======================//
 void p_program() {  
@@ -284,7 +285,7 @@ std::string p_program_header() {
   }
   procedure* program = new procedure(); program->tblType = tbl_type::tbl_proc;
   symbol_elm elem (progN, program);
-  globalTable.insert(elem);
+  globalScope.insert(elem);
   
   if (a_getTok(token) && // is
       !check(token, token_type::type_keyword, key_type::key_is)) {
@@ -298,7 +299,7 @@ std::string p_program_header() {
 
 void p_program_body(std::string progN) {
   if (!abortFlag) {
-    tok token; symbol_table::iterator program = globalTable.find(progN);
+    tok token; symbol_table::iterator program = globalScope.find(progN);
     procedure* programObj = (procedure*) program->second;
     
     bool exists = false;
@@ -321,7 +322,7 @@ void p_program_body(std::string progN) {
           if (!globalFlag) {
             programObj->local.scope.insert(elem);
           } else {
-            globalTable.insert(elem);
+            globalScope.insert(elem);
           }
         }
       }
@@ -337,7 +338,7 @@ void p_program_body(std::string progN) {
     
     // TODO codegen
     do { // statement repeat
-      p_statement(exists); 
+      p_statement(exists, programObj->local.scope); 
       
       if (exists && a_getTok(token) && // ;
           !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
@@ -461,7 +462,7 @@ std::string p_procedure_header(bool &exists, symbol* &declared, symbol_table &sc
         std::string errMsg = "Identifier name already exists in current scope from <procedure_declaration>";
         reportError(token, err_type::error, errMsg);
         suc = false;
-      } else if (globalTable.count(procN) != 0) {
+      } else if (globalScope.count(procN) != 0) {
         std::string errMsg = "Identifier name already exists in global scope from <procedure_declaration>";
         reportError(token, err_type::error, errMsg);
         suc = false;
@@ -479,8 +480,8 @@ std::string p_procedure_header(bool &exists, symbol* &declared, symbol_table &sc
         suc = false;
       }
       
-      bool hasParams = false;
-      p_parameter_list(hasParams, suc, *proc); // params are automatically added
+      bool hasParams = false; int order = 1;
+      p_parameter_list(hasParams, suc, order, *proc); // params are automatically added
       
       if (a_getTok(token) && // )
           !check(token, token_type::type_symb, symb_type::symb_cl_paren)) {
@@ -503,20 +504,20 @@ std::string p_procedure_header(bool &exists, symbol* &declared, symbol_table &sc
   return "";
 }
 
-void p_parameter_list(bool &exists, bool &suc, procedure &proc) {
+void p_parameter_list(bool &exists, bool &suc, int order, procedure &proc) {
   if (!abortFlag) {
     tok token;
     
     bool prevParams = exists;
-    p_parameter(exists, proc);
+    p_parameter(exists, order, proc); // adds param to procedure's scope
     
     if (exists) {
       tok lookahead; peekTok(lookahead); // ,
       if (check(lookahead, token_type::type_symb, symb_type::symb_comma)) {
         getTok(token);
-        p_parameter_list(exists, suc, proc);
+        p_parameter_list(exists, suc, order + 1, proc);
       } else {
-        p_parameter(exists, proc);
+        p_parameter(exists, order + 1, proc);
         if (exists) {
           std::string errMsg = "Missing ',' from <parameter_list>";
           reportError(token, err_type::error, errMsg);
@@ -538,7 +539,7 @@ void p_parameter_list(bool &exists, bool &suc, procedure &proc) {
   }
 }
 
-void p_parameter(bool &exists, procedure &proc) {
+void p_parameter(bool &exists, int order, procedure &proc) {
   if (!abortFlag) {
     tok token; bool suc = true;
     
@@ -573,6 +574,7 @@ void p_parameter(bool &exists, procedure &proc) {
     
     if (suc) {
       // assign to procedure
+      parameter->order = order;
       symbol_elm elem (paramN, (symbol*) parameter); // declared is not NULL so make element
       proc.local.scope.insert(elem);
     } else {
@@ -606,8 +608,8 @@ void p_procedure_body(procedure* &proc) {
             proc->local.scope.insert(elem);
           } else {
             // according to project semantics, only those in the OUTERMOST SCOPE
-            //   are considered for globalTable
-            //globalTable.insert(elem); 
+            //   are considered for globalScope
+            //globalScope.insert(elem); 
             proc->local.scope.insert(elem);
           }
         }
@@ -643,7 +645,7 @@ void p_procedure_body(procedure* &proc) {
     //       returns, it gets back to where it is
     
     do { // statement repeat
-      p_statement(exists); 
+      p_statement(exists, proc->local.scope); // statement should be valid when it gets here
       
       if (exists && a_getTok(token) && // ;
           !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
@@ -693,7 +695,7 @@ std::string p_variable_declaration(bool &exists, symbol* &declared, symbol_table
         std::string errMsg = "Identifier name already exists in current scope from <variable_declaration>";
         reportError(token, err_type::error, errMsg);
         suc = false;
-      } else if (globalTable.count(varN) != 0) {
+      } else if (globalScope.count(varN) != 0) {
         std::string errMsg = "Identifier name already exists in global scope from <variable_declaration>";
         reportError(token, err_type::error, errMsg);
         suc = false;
@@ -852,22 +854,22 @@ void p_upper_bound(bool &suc, int &val) {
   }
 }
 
-void p_statement(bool &exists) {
+void p_statement(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
-    
-    p_assignment_statement(exists);
+    // TODO
+    p_assignment_statement(exists, scope); // needs check
     if (!exists) {
-      p_if_statement(exists);
+      p_if_statement(exists, scope);
     }
     if (!exists) {
-      p_loop_statement(exists);
+      p_loop_statement(exists, scope);
     }
     if (!exists) {
       p_return_statement(exists);
     }
     if (!exists) {
-      p_procedure_call(exists);
+      p_procedure_call(exists, scope); // needs check
     } // if exists is still false, a statement does not exist
     
     if (!exists) { // STATEMENTS ALWAYS END IN EITHER 'ELSE' OR 'END'
@@ -878,7 +880,7 @@ void p_statement(bool &exists) {
         // unknown token in declaration
         std::string errMsg = "Incorrect start token in <statement>";
         reportError(token, err_type::error, errMsg);
-        p_statement(exists);
+        p_statement(exists, scope);
       } else {
         scanner.undo(); // if we find a statement, undo the consume
       }
@@ -886,13 +888,33 @@ void p_statement(bool &exists) {
   }
 }
 
-void p_procedure_call(bool &exists) {
+void p_procedure_call(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
     
-    p_identifier(exists);
+    std::string procN = p_identifier(exists);
     
+    // since procedure call is last on the statement list, if an identifier exists
+    //   it has to be a procedure call
     if (exists) {
+      symbol* tmp; procedure* proc;
+      if (scope.count(procN) != 0) {
+        tmp = scope.find(procN)->second;
+      } else if (globalScope.count(procN) != 0) {
+        tmp = globalScope.find(procN)->second;
+      } else {
+        std::string errMsg = "Procedure not in scope <procedure_call>";
+        reportError(token, err_type::error, errMsg);
+      }
+      
+      // make sure it is a procedure
+      if (tmp != NULL && tmp->tblType == tbl_type::tbl_proc) {
+        proc = (procedure*) tmp;
+      } else {
+        std::string errMsg = "Symbol called is not a procedure <procedure_call>";
+        reportError(token, err_type::error, errMsg);
+      }
+      
       if (a_getTok(token) && // (
           !check(token, token_type::type_symb, symb_type::symb_op_paren)) {
         std::string errMsg = "Missing '(' from <procedure_call>";
@@ -901,10 +923,8 @@ void p_procedure_call(bool &exists) {
       }
       
       bool hasArgs = false;
-      p_argument_list(hasArgs); 
-      if (hasArgs) {
-        // add arg list to call
-      }
+      p_argument_list(hasArgs, proc); // will check to see that the params meet the proc 
+      // and add statements if they all work out
       
       if (a_getTok(token) && // )
           !check(token, token_type::type_symb, symb_type::symb_cl_paren)) {
@@ -916,11 +936,12 @@ void p_procedure_call(bool &exists) {
   }
 }
 
-void p_assignment_statement(bool &exists) {
+void p_assignment_statement(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
     
-    p_destination(exists);
+    // TODO typecheck
+    nameObj dest = p_destination(exists, scope);
     
     if (exists) {
       tok lookahead; peekTok(lookahead); // check = or :=
@@ -938,7 +959,7 @@ void p_assignment_statement(bool &exists) {
     }
     
     if (exists) {
-      p_expression(exists);
+      p_expression(exists, scope);
       if (!exists) {
         std::string errMsg = "Missing <expression> from <assignment_statement>";
         reportError(token, err_type::error, errMsg);
@@ -947,27 +968,91 @@ void p_assignment_statement(bool &exists) {
   }
 }
 
-void p_destination(bool &exists) {
+nameObj p_destination(bool &exists, symbol_table &scope) {
+  nameObj out; out.name = "";
   if (!abortFlag) {
     tok token;
     
-    p_identifier(exists);
+    out.name = p_identifier(exists);
     
     if (exists) {
-      bool array = false;
+      out.idx = false;
       if (a_getTok(token)) { // optional [
         if (check(token, token_type::type_symb, symb_type::symb_op_bracket)) {
-          array = true;
+          out.idx = true;
         } else {
           scanner.undo();
         }
       }
       
-      if (array) {
-        p_expression(exists);
-        if (!exists) {
-          std::string errMsg = "Missing <expression> from <destination>";
+      if (out.idx) { // if this is correct, must be a destination
+        // check to see if it's in scope
+        symbol* tmp; object* obj;
+        if (scope.count(out.name) != 0) {
+          tmp = scope.find(out.name)->second;
+        } else if (globalScope.count(out.name) != 0) {
+          tmp = globalScope.find(out.name)->second;
+        } else {
+          std::string errMsg = "Object does not exist or is not in scope <destination>";
           reportError(token, err_type::error, errMsg);
+          out.name = "";
+        }
+        
+        // make sure it is an object
+        if (tmp != NULL && tmp->tblType == tbl_type::tbl_obj) {
+          obj = (object*) tmp;
+        } else {
+          std::string errMsg = "Symbol called is not an object <destination>";
+          reportError(token, err_type::error, errMsg);
+          out.name = "";
+        }
+      
+        factor expF = p_expression(exists, scope);
+        if (!exists) {
+          std::string errMsg = "Missing index <expression> from <destination>";
+          reportError(token, err_type::error, errMsg);
+          out.name = "";
+        }
+        
+        // check to see that expression is an int within lb and ub
+        if (exists && obj != NULL) {
+          if (obj->lb == obj->ub) { // obj is not an array so throw error
+            std::string errMsg = "Cannot index into non-array object <destination>";
+            reportError(token, err_type::error, errMsg);
+            out.name = "";
+          } else {
+            if (expF.objType == obj_type::obj_integer) { // retF is integer
+              // do int bounds check
+              if (expF.i >= obj->lb && expF.i <= obj->ub) {
+                out.boundsIntPos = expF.i;
+              } else {
+                std::string errMsg = "Out of bounds error <destination>";
+                reportError(token, err_type::error, errMsg);
+                out.name = "";
+              }
+            } else {
+              if (expF.objType == obj_type::obj_id && 
+                  expF.obj.varType == obj_type::obj_integer) {
+                // if an int object, check to see that it's either not an array, 
+                //   or an index into an array TODO
+                // THIS SEEMS LIKE A RUNTIME THING
+                //   IF THE EXPRESSION IS A VARIABLE SET BY getInteger(), 
+                //   WE CANNOT DO THIS DURING COMPILE TIME
+                object* expO = (object*) scope.find(expF.obj.name)->second;
+                if (expO->lb != expO->ub && !expF.obj.idx) {
+                  std::string errMsg = "Index cannot be an array <destination>";
+                  reportError(token, err_type::error, errMsg);
+                  out.name = "";
+                } else {
+                  out.boundsPos = expF.obj.name;
+                }
+              } else {
+                std::string errMsg = "Index must resolve into an integer <destination>";
+                reportError(token, err_type::error, errMsg);
+                out.name = "";
+              }
+            }
+          }
         }
         
         if (a_getTok(token) && // ]
@@ -975,13 +1060,18 @@ void p_destination(bool &exists) {
           std::string errMsg = "Missing ']' from <destination>";
           reportError(token, err_type::error, errMsg);
           scanner.undo();
+          out.name = "";
         }
+        exists = true;
       }
     }
+  } else {
+    exists = false;
   }
+  return out;
 }
 
-void p_if_statement(bool &exists) {
+void p_if_statement(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
     
@@ -1003,7 +1093,7 @@ void p_if_statement(bool &exists) {
       }
       
       bool reqExists = false;
-      p_expression(reqExists);
+      p_expression(reqExists, scope);
       if (!reqExists) {
         std::string errMsg = "Missing <expression> from <if_statement>";
         reportError(token, err_type::error, errMsg);
@@ -1025,7 +1115,7 @@ void p_if_statement(bool &exists) {
       }
       
       bool sExists = false;
-      p_statement(sExists); // first statement
+      p_statement(sExists, scope); // first statement
       if (!sExists) {
         std::string errMsg = "Missing statements from <if_statement><then>";
         reportError(token, err_type::error, errMsg);
@@ -1039,7 +1129,7 @@ void p_if_statement(bool &exists) {
       }
       
       while (sExists) { // statement repeat
-        p_statement(sExists); 
+        p_statement(sExists, scope); 
         
         if (sExists && a_getTok(token) && // ;
             !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
@@ -1059,7 +1149,7 @@ void p_if_statement(bool &exists) {
       }
       
       if (elseFlag) {
-        p_statement(sExists); // first statement
+        p_statement(sExists, scope); // first statement
         if (!sExists) {
           std::string errMsg = "Missing statements from <if_statement><else>";
           reportError(token, err_type::error, errMsg);
@@ -1073,7 +1163,7 @@ void p_if_statement(bool &exists) {
         }
         
         while (sExists) { // statement repeat
-          p_statement(sExists); 
+          p_statement(sExists, scope); 
           
           if (sExists && a_getTok(token) && // ;
               !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
@@ -1102,7 +1192,7 @@ void p_if_statement(bool &exists) {
   }
 }
 
-void p_loop_statement(bool &exists) {
+void p_loop_statement(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
     
@@ -1124,7 +1214,7 @@ void p_loop_statement(bool &exists) {
       }
       
       bool reqExists = false;
-      p_assignment_statement(reqExists);
+      p_assignment_statement(reqExists, scope);
       if (!reqExists) {
         std::string errMsg = "Missing assignment statement from <loop_statement>";
         reportError(token, err_type::error, errMsg);
@@ -1137,7 +1227,7 @@ void p_loop_statement(bool &exists) {
         scanner.undo();
       }
       
-      p_expression(reqExists);
+      p_expression(reqExists, scope);
       if (!reqExists) {
         std::string errMsg = "Missing <expression> from <loop_statement>";
         reportError(token, err_type::error, errMsg);
@@ -1151,7 +1241,7 @@ void p_loop_statement(bool &exists) {
       }
       
       bool sExists = false;
-      p_statement(sExists); // first statement
+      p_statement(sExists, scope); // first statement
       if (!sExists) {
         std::string errMsg = "Missing statements from <loop_statement>";
         reportError(token, err_type::error, errMsg);
@@ -1165,7 +1255,7 @@ void p_loop_statement(bool &exists) {
       }
       
       while (sExists) { // statement repeat
-        p_statement(sExists); 
+        p_statement(sExists, scope); 
         
         if (sExists && a_getTok(token) && // ;
             !check(token, token_type::type_symb, symb_type::symb_semicolon)) {
@@ -1203,6 +1293,8 @@ void p_return_statement(bool &exists) {
       exists = false;
       scanner.undo();
     }
+  } else {
+    exists = false;
   }
 }
 
@@ -1228,7 +1320,8 @@ std::string p_identifier(bool &exists) {
   return "";
 }
 
-void p_expression(bool &exists) {
+factor p_expression(bool &exists, symbol_table &scope) {
+  factor out;  out.objType = obj_type::obj_none;
   if (!abortFlag) {
     tok token;
     
@@ -1241,24 +1334,27 @@ void p_expression(bool &exists) {
       }
     }
     
-    p_arithOp(exists);
-    p_expression_pr(exists);
+    p_arithOp(exists, scope);
+    p_expression_pr(exists, scope);
+  } else {
+    exists = false;
   }
+  return out;
 }
 
-void p_expression_pr(bool &exists) {
+void p_expression_pr(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
     
     if (a_getTok(token)) { // & or | and if neither exist backtrack
       if (check(token, token_type::type_symb, symb_type::symb_amper)) {
         // handle ampersand
-        p_arithOp(exists);
-        p_expression_pr(exists);
+        p_arithOp(exists, scope);
+        p_expression_pr(exists, scope);
       } else if (check(token, token_type::type_symb, symb_type::symb_straight)) {
         // handle straight
-        p_arithOp(exists);
-        p_expression_pr(exists);
+        p_arithOp(exists, scope);
+        p_expression_pr(exists, scope);
       } else { // if it is a symbol [not )], than assume expression (with undef symb) and eat
         scanner.undo();
         /*if (!token.tokenType == token_type::type_symb ||
@@ -1276,28 +1372,28 @@ void p_expression_pr(bool &exists) {
   }
 }
 
-void p_arithOp(bool &exists) {
+void p_arithOp(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
    
     
-    p_relation(exists);
-    p_arithOp_pr(exists);
+    p_relation(exists, scope);
+    p_arithOp_pr(exists, scope);
   }
 }
 
-void p_arithOp_pr(bool &exists) {
+void p_arithOp_pr(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
     
     if (a_getTok(token)) { // + or - and if neither exist backtrack
       if (check(token, token_type::type_symb, symb_type::symb_plus)) {
         // handle plus
-        p_relation(exists);
-        p_arithOp_pr(exists);
+        p_relation(exists, scope);
+        p_arithOp_pr(exists, scope);
       } else if (check(token, token_type::type_symb, symb_type::symb_minus)) {
         // handle minus
-        p_relation(exists);
-        p_arithOp_pr(exists);
+        p_relation(exists, scope);
+        p_arithOp_pr(exists, scope);
       } else {
         scanner.undo();
       }
@@ -1305,51 +1401,51 @@ void p_arithOp_pr(bool &exists) {
   }
 }
 
-void p_relation(bool &exists) {
+void p_relation(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
    
     
-    p_term(exists);
-    p_relation_pr(exists);
+    p_term(exists, scope);
+    p_relation_pr(exists, scope);
   }
 }
 
-void p_relation_pr(bool &exists) {
+void p_relation_pr(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
     
     if (a_getTok(token)) { // <|>=|<=|>|==|!= and if none exist backtrack
       if (check(token, token_type::type_symb, symb_type::symb_smaller)) {
         // handle smaller than
-        p_term(exists);
-        p_relation_pr(exists);
+        p_term(exists, scope);
+        p_relation_pr(exists, scope);
       } else if (check(token, token_type::type_symb, symb_type::symb_greater_eq)) {
         // handle greater than or equals
-        p_term(exists);
-        p_relation_pr(exists);
+        p_term(exists, scope);
+        p_relation_pr(exists, scope);
       } else if (check(token, token_type::type_symb, symb_type::symb_smaller_eq)) {
         // handle smaller than or equals
-        p_term(exists);
-        p_relation_pr(exists);
+        p_term(exists, scope);
+        p_relation_pr(exists, scope);
       } else if (check(token, token_type::type_symb, symb_type::symb_greater)) {
         // handle grater than
-        p_term(exists);
-        p_relation_pr(exists);
+        p_term(exists, scope);
+        p_relation_pr(exists, scope);
       } else if (check(token, token_type::type_symb, symb_type::symb_equals)) {
         // handle equals
-        p_term(exists);
-        p_relation_pr(exists);
+        p_term(exists, scope);
+        p_relation_pr(exists, scope);
       } else if (check(token, token_type::type_symb, symb_type::symb_not_equals)) {
         // handle not equals
-        p_term(exists);
-        p_relation_pr(exists);
+        p_term(exists, scope);
+        p_relation_pr(exists, scope);
       } else if (check(token, token_type::type_symb, symb_type::symb_assign) ||
                  token.tokenType == token_type::type_illegal) {
         // handle illegal
         std::string errMsg = "Illegal symb in <expression>";
         reportError(token, err_type::error, errMsg);
-        p_term(exists);
-        p_relation_pr(exists);
+        p_term(exists, scope);
+        p_relation_pr(exists, scope);
       } else {
         scanner.undo();
       }
@@ -1357,44 +1453,72 @@ void p_relation_pr(bool &exists) {
   }
 }
 
-void p_term(bool &exists) {
+factor p_term(bool &exists, symbol_table &scope) {
+  factor out; out.objType = obj_type::obj_none;
   if (!abortFlag) {
    
+    out = p_factor(exists, scope);
+    if (exists) {
+      out = p_term_pr(exists, scope, out);
+    }
     
-    p_factor(exists);
-    p_term_pr(exists);
+  } else {
+    exists = false;
   }
+  return out;
 }
 
-void p_term_pr(bool &exists) {
+factor p_term_pr(bool &exists, symbol_table &scope, factor in) {
+  factor out; out.objType = obj_type::obj_none;
   if (!abortFlag) {
     tok token;
     
     if (a_getTok(token)) { // * or / and if neither exist backtrack
       if (check(token, token_type::type_symb, symb_type::symb_multi)) {
         // handle multiply
-        p_factor(exists);
-        p_term_pr(exists);
+        out = p_factor(exists, scope);
+        
+        if (exists) {
+          // typecheck * can be with int, float
+          obj_type left, right;
+          if (in.objType == obj_type::obj_id) {
+            
+          }
+        }
+        
+        p_term_pr(exists, scope, out);
       } else if (check(token, token_type::type_symb, symb_type::symb_div)) {
         // handle divide
-        p_factor(exists);
-        p_term_pr(exists);
+        out = p_factor(exists, scope);
+        
+        if (exists) {
+          // typecheck / can be with int, float
+          obj_type left, right;
+          if (in.objType == obj_type::obj_id) {
+            
+          }
+        }
+        
+        p_term_pr(exists, scope, out);
       } else {
         scanner.undo();
       }
     }
+  } else {
+    exists = false;
   }
+  return out;
 }
 
-void p_factor(bool &exists) {
+factor p_factor(bool &exists, symbol_table &scope) {
+  factor out; out.objType = obj_type::obj_none;
   if (!abortFlag) {
     tok token;
     
     exists = false;
     if (a_getTok(token)) { // ( if not backtrack
       if (check(token, token_type::type_symb, symb_type::symb_op_paren)) {
-        // handle expression
-        exists = true;
+        exists = true; // handle expression
       } else {
         scanner.undo();
       }
@@ -1402,7 +1526,7 @@ void p_factor(bool &exists) {
     
     if (exists) {
       bool reqExists = false;
-      p_expression(reqExists);
+      out = p_expression(reqExists, scope); // name already handles id scopes
       if (!reqExists) {
         std::string errMsg = "Missing <expression> from <factor><expression>";
         reportError(token, err_type::error, errMsg);
@@ -1413,87 +1537,202 @@ void p_factor(bool &exists) {
         std::string errMsg = "Missing ')' from <factor><expression>";
         reportError(token, err_type::error, errMsg);
         scanner.undo();
+        out.objType = obj_type::obj_none;
       }
+      
+      // handling expression, return expression except if there is no ) then void it
     } else {
       bool neg = false;
       if (a_getTok(token)) { // - if not backtrack
         if (check(token, token_type::type_symb, symb_type::symb_op_paren)) {
-          // handle negative
-          neg = true;
+          neg = true; // handle negative
         } else {
           scanner.undo();
         }
       }
       
-      p_name(exists);
+      out = p_name(exists, scope); // name handles id scopes
       if (!exists) {
-        p_number(exists);
+        out = p_number(exists);
       }
       if (!exists) {
-        p_string(exists);
+        out = p_string(exists);
         if (exists && neg) {
           std::string errMsg = "Invalid - for string from <factor>";
           reportError(token, err_type::error, errMsg);
+          out.objType = obj_type::obj_none;
         }
       }
       if (!exists) {
-        p_char(exists);
+        out = p_char(exists);
         if (exists && neg) {
           std::string errMsg = "Invalid - for char from <factor>";
           reportError(token, err_type::error, errMsg);
+          out.objType = obj_type::obj_none;
         }
       }
-      if (!exists) {
-        if (a_getTok(token)) { // true or false and if neither exist backtrack
-          if (check(token, token_type::type_keyword, key_type::key_true)) {
-            exists = true;
-            if (neg) {
-              std::string errMsg = "Invalid - for true from <factor>";
-              reportError(token, err_type::error, errMsg);
-            } else {
-              // handle true
-            }
-          } else if (check(token, token_type::type_keyword, key_type::key_false)) {
-            exists = true;
-            if (neg) {
-              std::string errMsg = "Invalid - for false from <factor>";
-              reportError(token, err_type::error, errMsg);
-            } else {
-              // handle false
-            }
+      if (!exists && a_getTok(token)) { // true or false and if neither exist backtrack
+        if (check(token, token_type::type_keyword, key_type::key_true)) {
+          exists = true;
+          if (neg) {
+            std::string errMsg = "Invalid - for true from <factor>";
+            reportError(token, err_type::error, errMsg);
           } else {
-            // handle alone neg, not true or false and none of the above, but still have neg
-            if (neg) {
-              std::string errMsg = "Orphan '-' in <factor>";
-              reportError(token, err_type::error, errMsg);
-            }
-            scanner.undo();
+            out.objType = obj_type::obj_bool; // handle true
+            out.b = true;
+            print_dbg_message("is bool\n");
           }
+        } else if (check(token, token_type::type_keyword, key_type::key_false)) {
+          exists = true;
+          if (neg) {
+            std::string errMsg = "Invalid - for false from <factor>";
+            reportError(token, err_type::error, errMsg);
+          } else {
+            out.objType = obj_type::obj_bool; // handle false
+            out.b = false;
+            print_dbg_message("is bool\n");
+          }
+        } else {
+          // handle alone neg, not true or false and none of the above, but still have neg
+          if (neg) {
+            std::string errMsg = "Orphan '-' in <factor>";
+            reportError(token, err_type::error, errMsg);
+          }
+          scanner.undo();
         }
       }
     }
+  } else {
+    exists = false;
   }
+  return out;
 }
 
-void p_name(bool &exists) {
- 
-  p_destination(exists);
+factor p_name(bool &exists, symbol_table &scope) {
+  factor outF; outF.objType = obj_type::obj_none;
+  if (!abortFlag) {
+    tok token; nameObj out;
+    
+    out.name = p_identifier(exists);
+    
+    if (exists) {
+      // check to see if it's in scope
+      symbol* tmp; object* obj;
+      if (scope.count(out.name) != 0) {
+        tmp = scope.find(out.name)->second;
+      } else if (globalScope.count(out.name) != 0) {
+        tmp = globalScope.find(out.name)->second;
+      } else {
+        std::string errMsg = "Object does not exist or is not in scope <name>";
+        reportError(token, err_type::error, errMsg);
+        out.name = "";
+      }
+      
+      // make sure it is an object
+      if (tmp != NULL && tmp->tblType == tbl_type::tbl_obj) {
+        obj = (object*) tmp;
+        out.varType = obj->objType; // save obj type into factor nameObj (so we don't have to look it up in the future)
+      } else {
+        std::string errMsg = "Symbol called is not an object <name>";
+        reportError(token, err_type::error, errMsg);
+        out.name = "";
+      }
+    
+      out.idx = false;
+      if (a_getTok(token)) { // optional [
+        if (check(token, token_type::type_symb, symb_type::symb_op_bracket)) {
+          out.idx = true;
+        } else {
+          scanner.undo();
+        }
+      }
+      
+      if (out.idx) {
+        factor expF = p_expression(exists, scope);
+        if (!exists) {
+          std::string errMsg = "Missing index <expression> from <name>";
+          reportError(token, err_type::error, errMsg);
+          out.name = "";
+        }
+        
+        // check to see that expression is an int within lb and ub
+        if (exists && obj != NULL) {
+          if (obj->lb == obj->ub) { // obj is not an array so throw error
+            std::string errMsg = "Cannot index into non-array object <name>";
+            reportError(token, err_type::error, errMsg);
+            out.name = "";
+          } else {
+            if (expF.objType == obj_type::obj_integer) { // retF is integer
+              // do int bounds check
+              if (expF.i >= obj->lb && expF.i <= obj->ub) {
+                out.boundsIntPos = expF.i;
+              } else {
+                std::string errMsg = "Out of bounds error <name>";
+                reportError(token, err_type::error, errMsg);
+                out.name = "";
+              }
+            } else {
+              if (expF.objType == obj_type::obj_id && 
+                  expF.obj.varType == obj_type::obj_integer) {
+                // if an int object, check to see that it's either not an array, 
+                //   or an index into an array TODO
+                // THIS SEEMS LIKE A RUNTIME THING
+                //   IF THE EXPRESSION IS A VARIABLE SET BY getInteger(), 
+                //   WE CANNOT DO THIS DURING COMPILE TIME
+                object* expO = (object*) scope.find(expF.obj.name)->second;
+                if (expO->lb != expO->ub && !expF.obj.idx) {
+                  std::string errMsg = "Index cannot be an array <name>";
+                  reportError(token, err_type::error, errMsg);
+                  out.name = "";
+                } else {
+                  out.boundsPos = expF.obj.name;
+                }
+              } else {
+                std::string errMsg = "Index must resolve into an integer <name>";
+                reportError(token, err_type::error, errMsg);
+                out.name = "";
+              }
+            }
+          }
+        }
+        
+        if (a_getTok(token) && // ]
+            !check(token, token_type::type_symb, symb_type::symb_cl_bracket)) {
+          std::string errMsg = "Missing ']' from <name>";
+          reportError(token, err_type::error, errMsg);
+          scanner.undo();
+          out.name = "";
+        }
+        exists = true;
+      }
+      
+      if (out.name.size() > 0) {
+        outF.objType = obj_type::obj_id;
+        outF.obj = out;
+      }
+    }
+  } else {
+    exists = false;
+  }
+  return outF;
 }
 
-void p_argument_list(bool &exists) {
+// IF proc IS NULL, DON'T CHECK IF ARGUMENTS ARE CORRECT
+void p_argument_list(bool &exists, procedure* proc) {
   if (!abortFlag) {
     tok token;
     
+    // TODO typecheck
     bool prevArgs = exists;
-    p_expression(exists);
+    p_expression(exists, proc->local.scope);
     
     if (exists) {
       tok lookahead; peekTok(lookahead); // ,
       if (check(lookahead, token_type::type_symb, symb_type::symb_comma)) {
         getTok(token);
-        p_argument_list(exists);
+        p_argument_list(exists, proc);
       } else {
-        p_expression(exists);
+        p_expression(exists, proc->local.scope);
         if (exists) {
           std::string errMsg = "Missing ',' from <argument_list>";
           reportError(token, err_type::error, errMsg);
@@ -1512,7 +1751,7 @@ void p_argument_list(bool &exists) {
 }
 
 factor p_number(bool &exists) {
-  factor out;
+  factor out; out.objType = obj_type::obj_none;
   if (!abortFlag) {
     tok token;
     
@@ -1537,7 +1776,8 @@ factor p_number(bool &exists) {
   return out;
 }
 
-void p_string(bool &exists) {
+factor p_string(bool &exists) {
+  factor out; out.objType = obj_type::obj_none;
   if (!abortFlag) {
     tok token;
     
@@ -1548,12 +1788,18 @@ void p_string(bool &exists) {
       scanner.undo();
     }
     if (exists) {
+      out.objType = obj_type::obj_string;
+      out.s = token.name;
       print_dbg_message("is string\n");
     }
+  } else {
+    exists = false;
   }
+  return out;
 }
 
-void p_char(bool &exists) {
+factor p_char(bool &exists) {
+  factor out; out.objType = obj_type::obj_none;
   if (!abortFlag) {
     tok token;
     
@@ -1564,9 +1810,14 @@ void p_char(bool &exists) {
       scanner.undo();
     }
     if (exists) {
+      out.objType = obj_type::obj_char;
+      out.c = token.c;
       print_dbg_message("is char\n");
     }
+  } else {
+    exists = false;
   }
+  return out;
 }
 
 void printSymbolTable(std::string name, symbol_table &tbl) {
@@ -1583,13 +1834,14 @@ void printSymbolTable(std::string name, symbol_table &tbl) {
         if (it->second->tblType == tbl_type::tbl_param) {
           param* x = (param*) it->second;
           std::cout << " " << paramTypeToString(x->paramType);
+          std::cout << " " << x->order;
         }
         object* x = (object*) it->second;
         std::cout << "\n  " << " " << objTypeToString(x->objType) << " [" << x->lb << ":" 
                   << x->ub << "]" << "\n";
       }
     } else {
-      std::cout << it->first << ": \n";
+      std::cout << it->first << ": self\n";
     }
   }
   std::cout << "------------\n";
@@ -1625,7 +1877,7 @@ int main(int argc, const char *argv[]) {
         float vect5[10:20];
       */
       
-      printSymbolTable("global", globalTable);
+      printSymbolTable("global", globalScope);
       
     } else {
       tok token;

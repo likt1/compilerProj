@@ -11,7 +11,7 @@
 //====================== Parser functions ======================//
 void p_program();
 
-std::string p_program_header();
+std::string p_program_header(); // type check complete
 
 void p_program_body(std::string);
 
@@ -26,15 +26,15 @@ std::string p_procedure_declaration(bool &,
 
 // exists checker
 std::string p_procedure_header(bool &,
-    symbol* &, symbol_table &);
+    symbol* &, symbol_table &); // type check complete
 
 // exists safe?
 void p_parameter_list(bool &, bool &,
-    procedure &);
+    int, procedure &); // type check complete ?
 
 // exists safe
 void p_parameter(bool &,
-    procedure &);
+    int, procedure &); // type check complete ?
 
 void p_procedure_body(procedure* &);
 
@@ -50,22 +50,28 @@ void p_lower_bound(bool &, int &); // type check complete
 void p_upper_bound(bool &, int &); // type check complete
 
 // exists safe
-void p_statement(bool &);
+void p_statement(bool &,
+    symbol_table &);
 
 // exists safe
-void p_procedure_call(bool &);
+void p_procedure_call(bool &,
+    symbol_table &);
 
 // exists safe
-void p_assignment_statement(bool &);
+void p_assignment_statement(bool &,
+    symbol_table &);
 
 // exists safe
-void p_destination(bool &);
+nameObj p_destination(bool &,
+    symbol_table &); // type check complete (should)
 
 // exists checker
-void p_if_statement(bool &);
+void p_if_statement(bool &,
+    symbol_table &);
 
 // exists checker
-void p_loop_statement(bool &);
+void p_loop_statement(bool &,
+    symbol_table &);
 
 // exists checker
 void p_return_statement(bool &);
@@ -74,46 +80,57 @@ void p_return_statement(bool &);
 std::string p_identifier(bool &); // type check complete
 
 // exists safe
-void p_expression(bool &);
+factor p_expression(bool &,
+    symbol_table &);
 
 // exists safe
-void p_expression_pr(bool &);
+void p_expression_pr(bool &,
+    symbol_table &);
 
 // exists safe
-void p_arithOp(bool &);
+void p_arithOp(bool &,
+    symbol_table &);
 
 // exists safe
-void p_arithOp_pr(bool &);
+void p_arithOp_pr(bool &,
+    symbol_table &);
 
 // exists safe
-void p_relation(bool &);
+void p_relation(bool &,
+    symbol_table &);
 
 // exists safe
-void p_relation_pr(bool &);
+void p_relation_pr(bool &,
+    symbol_table &);
 
 // exists safe
-void p_term(bool &);
+factor p_term(bool &,
+    symbol_table &);
 
 // exists safe
-void p_term_pr(bool &);
+factor p_term_pr(bool &,
+    symbol_table &, factor);
 
 // exists checker
-void p_factor(bool &);
+factor p_factor(bool &,
+    symbol_table &); // type check complete (should)
 
 // exists checker (basically destination)
-void p_name(bool &);
+factor p_name(bool &,
+    symbol_table &); // type check complete (should)
 
 // exists safe?
-void p_argument_list(bool &);
+void p_argument_list(bool &,
+    procedure*);
 
 // cannot error | exists checker
 factor p_number(bool &); // type check complete
 
 // cannot error | exists checker
-void p_string(bool &);
+factor p_string(bool &); // type check complete
 
 // cannot error | exists checker
-void p_char(bool &);
+factor p_char(bool &); // type check complete
 
 #endif
 
