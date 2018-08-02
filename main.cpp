@@ -936,6 +936,9 @@ void p_procedure_call(bool &exists, symbol_table &scope) {
   }
 }
 
+// ASSIGNMENT TYPE CONVERSION
+//   int <-> float
+//   int <-> bool
 void p_assignment_statement(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
@@ -1320,6 +1323,9 @@ std::string p_identifier(bool &exists) {
   return "";
 }
 
+// EXPRESSION TYPE CONVERSION
+//   int -> float (to achive float vs float equiv in arithmetic operations only)
+//   int -> bool (to achive bool vs bool equiv in relational operations only)
 factor p_expression(bool &exists, symbol_table &scope) {
   factor out;  out.objType = obj_type::obj_none;
   if (!abortFlag) {
@@ -1333,6 +1339,8 @@ factor p_expression(bool &exists, symbol_table &scope) {
         scanner.undo();
       }
     }
+    
+          // typecheck not can be with int, bool only
     
     p_arithOp(exists, scope);
     p_expression_pr(exists, scope);
@@ -1349,10 +1357,12 @@ void p_expression_pr(bool &exists, symbol_table &scope) {
     if (a_getTok(token)) { // & or | and if neither exist backtrack
       if (check(token, token_type::type_symb, symb_type::symb_amper)) {
         // handle ampersand
+          // typecheck & can be with int, bool only
         p_arithOp(exists, scope);
         p_expression_pr(exists, scope);
       } else if (check(token, token_type::type_symb, symb_type::symb_straight)) {
         // handle straight
+          // typecheck | can be with int, bool only
         p_arithOp(exists, scope);
         p_expression_pr(exists, scope);
       } else { // if it is a symbol [not )], than assume expression (with undef symb) and eat
@@ -1388,10 +1398,12 @@ void p_arithOp_pr(bool &exists, symbol_table &scope) {
     if (a_getTok(token)) { // + or - and if neither exist backtrack
       if (check(token, token_type::type_symb, symb_type::symb_plus)) {
         // handle plus
+          // typecheck + can be with int, float only
         p_relation(exists, scope);
         p_arithOp_pr(exists, scope);
       } else if (check(token, token_type::type_symb, symb_type::symb_minus)) {
         // handle minus
+          // typecheck - can be with int, float only
         p_relation(exists, scope);
         p_arithOp_pr(exists, scope);
       } else {
@@ -1415,6 +1427,8 @@ void p_relation_pr(bool &exists, symbol_table &scope) {
     tok token;
     
     if (a_getTok(token)) { // <|>=|<=|>|==|!= and if none exist backtrack
+          // typecheck all relationals return bool and
+          //   can be with int, float, bool, char only
       if (check(token, token_type::type_symb, symb_type::symb_smaller)) {
         // handle smaller than
         p_term(exists, scope);
@@ -1479,7 +1493,7 @@ factor p_term_pr(bool &exists, symbol_table &scope, factor in) {
         out = p_factor(exists, scope);
         
         if (exists) {
-          // typecheck * can be with int, float
+          // typecheck * can be with int, float only
           obj_type left, right;
           if (in.objType == obj_type::obj_id) {
             
@@ -1492,7 +1506,7 @@ factor p_term_pr(bool &exists, symbol_table &scope, factor in) {
         out = p_factor(exists, scope);
         
         if (exists) {
-          // typecheck / can be with int, float
+          // typecheck / can be with int, float only
           obj_type left, right;
           if (in.objType == obj_type::obj_id) {
             
