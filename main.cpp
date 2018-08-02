@@ -380,18 +380,10 @@ std::string p_declaration(bool &exists, symbol* &declared, symbol_table &scope, 
     
     // Procedure or variable?
     std::string decN;
-    if (globalFlag) {
-      decN = p_procedure_declaration(exists, declared, globalTable);
-    } else {
-      decN = p_procedure_declaration(exists, declared, scope);
-    }
+    decN = p_procedure_declaration(exists, declared, scope);
     
     if (!exists) { // if it wasn't a procedure then it's a variable
-      if (globalFlag) {
-        decN = p_variable_declaration(exists, declared, globalTable); 
-      } else {
-        decN = p_variable_declaration(exists, declared, scope); 
-      }
+      decN = p_variable_declaration(exists, declared, scope);
     } // if exists is still false then a declaration doesn't exist
     
     if (globalFlag && !exists) { // global with no declaration
@@ -469,13 +461,15 @@ std::string p_procedure_header(bool &exists, symbol* &declared, symbol_table &sc
         std::string errMsg = "Identifier name already exists in current scope from <procedure_declaration>";
         reportError(token, err_type::error, errMsg);
         suc = false;
+      } else if (globalTable.count(procN) != 0) {
+        std::string errMsg = "Identifier name already exists in global scope from <procedure_declaration>";
+        reportError(token, err_type::error, errMsg);
+        suc = false;
       } else {
         // assign procedure name (with procedure pointer) to itself
         symbol_elm elem (procN, (symbol*) proc);
         proc->local.scope.insert(elem);
       }
-      
-      
       
       if (a_getTok(token) && // (
           !check(token, token_type::type_symb, symb_type::symb_op_paren)) {
@@ -628,7 +622,26 @@ void p_procedure_body(procedure* &proc) {
       scanner.undo();
     }
     
-    // TODO code gen
+    // TODO code gen START HERE
+    // check that statements are all correct
+    // MAIN STATEMENTS THAT NEED CHECKING:
+    //   assignment       |right can be assigned to left (which needs to exist)
+    //   procedure call   |correct args for procedure (if it even is one)
+    // ifs and loops just contain more assignments or procedure calls (if it's \
+    //   not another if or loop.  These need to know current scope only (to send
+    //   to their assignments and procedure calls)
+    
+    // When all typechecking is complete, update program version (should be the
+    //   same) and start code gen.
+    // Code gen needs to generate:
+    //   declarations:
+    //     variables have their memory spaces
+    //     procedures have their memory and code spaces
+    //   main program:
+    //     calls variables and procedures in program execution space
+    //       these calls remember current location so that when the procedure
+    //       returns, it gets back to where it is
+    
     do { // statement repeat
       p_statement(exists); 
       
@@ -678,6 +691,10 @@ std::string p_variable_declaration(bool &exists, symbol* &declared, symbol_table
       var->ub = 0; var->lb = 0;
       if (scope.count(varN) != 0) {
         std::string errMsg = "Identifier name already exists in current scope from <variable_declaration>";
+        reportError(token, err_type::error, errMsg);
+        suc = false;
+      } else if (globalTable.count(varN) != 0) {
+        std::string errMsg = "Identifier name already exists in global scope from <variable_declaration>";
         reportError(token, err_type::error, errMsg);
         suc = false;
       }
