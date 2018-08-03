@@ -943,7 +943,7 @@ void p_upper_bound(bool &suc, int &val) {
 void p_statement(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
-    // TODO
+    
     p_assignment_statement(exists, scope); // needs check
     if (!exists) {
       p_if_statement(exists, scope);
@@ -1030,7 +1030,6 @@ void p_assignment_statement(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
     
-    // TODO typecheck
     nameObj dest = p_destination(exists, scope);
     
     if (exists) {
@@ -1052,6 +1051,7 @@ void p_assignment_statement(bool &exists, symbol_table &scope) {
     
     if (exists) {
       p_expression(exists, scope);
+      // TODO typecheck left (destination) vs right
       if (!exists) {
         std::string errMsg = "Missing <expression> from <assignment_statement>";
         reportError(token, err_type::error, errMsg);
@@ -1429,33 +1429,37 @@ factor p_expression(bool &exists, symbol_table &scope) {
       }
     }
     
-          // typecheck not can be with int, bool only
+          // typecheck not can be with int, bool only TODO
     
-    p_arithOp(exists, scope);
-    p_expression_pr(exists, scope);
+    out = p_arithOp(exists, scope);
+    
+    if (exists) {
+      bool check = false;
+      factor right = p_expression_pr(check, scope, out);
+      if (check) {
+        out = right;
+      }
+    }
   } else {
     exists = false;
   }
   return out;
 }
 
-void p_expression_pr(bool &exists, symbol_table &scope) {
+factor p_expression_pr(bool &exists, symbol_table &scope, factor left) {
+  factor right; right.objType = obj_type::obj_none;
   if (!abortFlag) {
     tok token;
     
+    op_type opType = op_type::op_none;
     if (a_getTok(token)) { // & or | and if neither exist backtrack
       if (check(token, token_type::type_symb, symb_type::symb_amper)) {
-        // handle ampersand
-          // typecheck & can be with int, bool only
-        p_arithOp(exists, scope);
-        p_expression_pr(exists, scope);
+        opType = op_type::op_amper; // handle ampersand
       } else if (check(token, token_type::type_symb, symb_type::symb_straight)) {
-        // handle straight
-          // typecheck | can be with int, bool only
-        p_arithOp(exists, scope);
-        p_expression_pr(exists, scope);
+        opType = op_type::op_straight; // handle straight
       } else { // if it is a symbol [not )], than assume expression (with undef symb) and eat
         scanner.undo();
+        exists = false;
         /*if (!token.tokenType == token_type::type_symb ||
             check(token, token_type::type_symb, symb_type::symb_op_paren)) {
           scanner.undo();
@@ -1467,105 +1471,173 @@ void p_expression_pr(bool &exists, symbol_table &scope) {
         }
         */
       }
-    }
-  }
-}
-
-void p_arithOp(bool &exists, symbol_table &scope) {
-  if (!abortFlag) {
-   
-    
-    p_relation(exists, scope);
-    p_arithOp_pr(exists, scope);
-  }
-}
-
-void p_arithOp_pr(bool &exists, symbol_table &scope) {
-  if (!abortFlag) {
-    tok token;
-    
-    if (a_getTok(token)) { // + or - and if neither exist backtrack
-      if (check(token, token_type::type_symb, symb_type::symb_plus)) {
-        // handle plus
-          // typecheck + can be with int, float only
-        p_relation(exists, scope);
-        p_arithOp_pr(exists, scope);
-      } else if (check(token, token_type::type_symb, symb_type::symb_minus)) {
-        // handle minus
-          // typecheck - can be with int, float only
-        p_relation(exists, scope);
-        p_arithOp_pr(exists, scope);
-      } else {
-        scanner.undo();
+      
+          // typecheck | & can be with int, bool only
+      if (opType != op_type::op_none) {
+        right = p_arithOp(exists, scope);
+        
+        if (exists) {
+          // typecheck TODO
+          
+          bool check = false;
+          factor tmpRight = p_expression_pr(check, scope, right);
+          if (check) {
+            right = tmpRight;
+          }
+        } else {
+          std::string errMsg = "Missing arithOp after <expression>";
+          reportError(token, err_type::error, errMsg);
+        }
       }
     }
+  } else {
+    exists = false;
   }
+  return right;
 }
 
-void p_relation(bool &exists, symbol_table &scope) {
+factor p_arithOp(bool &exists, symbol_table &scope) {
+  factor out; out.objType = obj_type::obj_none;
   if (!abortFlag) {
-   
+    out = p_relation(exists, scope);
     
-    p_term(exists, scope);
-    p_relation_pr(exists, scope);
+    if (exists) {
+      bool check = false;
+      factor right = p_arithOp_pr(check, scope, out);
+      if (check) {
+        out = right;
+      }
+    }
+  } else {
+    exists = false;
   }
+  return out;
 }
 
-void p_relation_pr(bool &exists, symbol_table &scope) {
+factor p_arithOp_pr(bool &exists, symbol_table &scope, factor left) {
+  factor right; right.objType = obj_type::obj_none;
   if (!abortFlag) {
     tok token;
     
+    op_type opType = op_type::op_none;
+    if (a_getTok(token)) { // + or - and if neither exist backtrack
+      if (check(token, token_type::type_symb, symb_type::symb_plus)) {
+        opType = op_type::op_plus; // handle plus
+      } else if (check(token, token_type::type_symb, symb_type::symb_minus)) {
+        opType = op_type::op_minus; // handle minus
+      } else {
+        scanner.undo();
+        exists = false;
+      }
+      
+      // typecheck + - can be with int, float only
+      if (opType != op_type::op_none) {
+        right = p_relation(exists, scope);
+        
+        if (exists) {
+          // typecheck TODO
+          
+          bool check = false;
+          factor tmpRight = p_arithOp_pr(check, scope, right);
+          if (check) {
+            right = tmpRight;
+          }
+        } else {
+          std::string errMsg = "Missing relation after <arithOp>";
+          reportError(token, err_type::error, errMsg);
+        }
+      }
+    }
+  } else {
+    exists = false;
+  }
+  return right;
+}
+
+factor p_relation(bool &exists, symbol_table &scope) {
+  factor out; out.objType = obj_type::obj_none;
+  if (!abortFlag) {
+    out = p_term(exists, scope);
+    
+    if (exists) {
+      bool check = false;
+      factor right = p_relation_pr(check, scope, out);
+      if (check) {
+        out = right;
+      }
+    }
+  } else {
+    exists = false;
+  }
+  return out;
+}
+
+factor p_relation_pr(bool &exists, symbol_table &scope, factor left) {
+  factor right; right.objType = obj_type::obj_none;
+  if (!abortFlag) {
+    tok token;
+    
+    op_type opType = op_type::op_none;
     if (a_getTok(token)) { // <|>=|<=|>|==|!= and if none exist backtrack
           // typecheck all relationals return bool and
           //   can be with int, float, bool, char only
       if (check(token, token_type::type_symb, symb_type::symb_smaller)) {
-        // handle smaller than
-        p_term(exists, scope);
-        p_relation_pr(exists, scope);
+        opType = op_type::op_smaller; // handle smaller than
       } else if (check(token, token_type::type_symb, symb_type::symb_greater_eq)) {
-        // handle greater than or equals
-        p_term(exists, scope);
-        p_relation_pr(exists, scope);
+        opType = op_type::op_greater_eq; // handle greater than or equals
       } else if (check(token, token_type::type_symb, symb_type::symb_smaller_eq)) {
-        // handle smaller than or equals
-        p_term(exists, scope);
-        p_relation_pr(exists, scope);
+        opType = op_type::op_smaller_eq; // handle smaller than or equals
       } else if (check(token, token_type::type_symb, symb_type::symb_greater)) {
-        // handle grater than
-        p_term(exists, scope);
-        p_relation_pr(exists, scope);
+        opType = op_type::op_greater; // handle grater than
       } else if (check(token, token_type::type_symb, symb_type::symb_equals)) {
-        // handle equals
-        p_term(exists, scope);
-        p_relation_pr(exists, scope);
+        opType = op_type::op_equals; // handle equals
       } else if (check(token, token_type::type_symb, symb_type::symb_not_equals)) {
-        // handle not equals
-        p_term(exists, scope);
-        p_relation_pr(exists, scope);
+        opType = op_type::op_not_equals; // handle not equals
       } else if (check(token, token_type::type_symb, symb_type::symb_assign) ||
                  token.tokenType == token_type::type_illegal) {
         // handle illegal
         std::string errMsg = "Illegal symb in <expression>";
         reportError(token, err_type::error, errMsg);
-        p_term(exists, scope);
-        p_relation_pr(exists, scope);
       } else {
         scanner.undo();
+        exists = false;
+      }
+      
+      if (opType != op_type::op_none) {
+        right = p_term(exists, scope);
+        
+        if (exists) {
+          // typecheck TODO
+          
+          bool check = false;
+          factor tmpRight = p_relation_pr(check, scope, right);
+          if (check) {
+            right = tmpRight;
+          }
+        } else {
+          std::string errMsg = "Missing term after <relation>";
+          reportError(token, err_type::error, errMsg);
+        }
       }
     }
+  } else {
+    exists = false;
   }
+  return right;
 }
 
 factor p_term(bool &exists, symbol_table &scope) {
   factor out; out.objType = obj_type::obj_none;
   if (!abortFlag) {
-   
     out = p_factor(exists, scope);
-    if (exists) {
-      out = p_term_pr(exists, scope, out);
-      exists = true;
-    }
     
+    if (exists) {
+      bool check = false;
+      factor right = p_term_pr(check, scope, out);
+      if (check) {
+        out = right;
+      }
+    }
   } else {
     exists = false;
   }
@@ -1585,6 +1657,7 @@ factor p_term_pr(bool &exists, symbol_table &scope, factor left) {
         opType = op_type::op_div; // handle divide
       } else {
         scanner.undo();
+        exists = false;
       }
       
       // typecheck * and / can be with int, float only
@@ -1653,6 +1726,7 @@ factor p_term_pr(bool &exists, symbol_table &scope, factor left) {
           // if both are ids return the array
           // if both are ids and neither or both are arrays, return the right id
           // if neither are ids, return the right one
+          // TODO try to compress this into a fuction so that it can be reused?
           if (suc) { // if previously unsuccessful, don't do anything
             if (left.objType == obj_type::obj_id && right.objType != obj_type::obj_id) {
               right = left;
@@ -1675,7 +1749,14 @@ factor p_term_pr(bool &exists, symbol_table &scope, factor left) {
             }
           }
           
-          right = p_term_pr(exists, scope, right);
+          bool check = false;
+          factor tmpRight = p_term_pr(check, scope, right);
+          if (check) {
+            right = tmpRight;
+          }
+        } else {
+          std::string errMsg = "Missing factor after <term>";
+          reportError(token, err_type::error, errMsg);
         }
       }
     }

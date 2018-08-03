@@ -44,6 +44,7 @@ enum op_type {
   op_not_equals,  // !=
   op_multi,       // *
   op_div,         // /
+  op_ill,
   op_none
 };
 

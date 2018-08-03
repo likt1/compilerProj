@@ -84,24 +84,24 @@ factor p_expression(bool &,
     symbol_table &);
 
 // exists safe
-void p_expression_pr(bool &,
+factor p_expression_pr(bool &,
+    symbol_table &, factor);
+
+// exists safe
+factor p_arithOp(bool &,
     symbol_table &);
 
 // exists safe
-void p_arithOp(bool &,
+factor p_arithOp_pr(bool &,
+    symbol_table &, factor);
+
+// exists safe
+factor p_relation(bool &,
     symbol_table &);
 
 // exists safe
-void p_arithOp_pr(bool &,
-    symbol_table &);
-
-// exists safe
-void p_relation(bool &,
-    symbol_table &);
-
-// exists safe
-void p_relation_pr(bool &,
-    symbol_table &);
+factor p_relation_pr(bool &,
+    symbol_table &, factor);
 
 // exists safe
 factor p_term(bool &,
