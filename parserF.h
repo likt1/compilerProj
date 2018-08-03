@@ -121,7 +121,7 @@ factor p_name(bool &,
 
 // exists safe?
 void p_argument_list(bool &,
-    symbol_table &, procedure*, int);
+    symbol_table &, procedure*, int &);
 
 // cannot error | exists checker
 factor p_number(bool &); // type check complete

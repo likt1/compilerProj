@@ -345,6 +345,52 @@ void checkArrayLength(obj_type &lType, obj_type &rType, factor &left, factor &ri
   }
 }
 
+// if only one is an id, return id as the main object
+// if both are ids return the array
+// if both are ids and neither or both are arrays, return the right id
+// if neither are ids, return the right one
+void leftRightRepl(factor &left, factor &right, symbol_table &scope, tok &token) {
+  if (left.objType == obj_type::obj_id && right.objType != obj_type::obj_id) {
+    right = left;
+  } else if (left.objType == obj_type::obj_id && right.objType == obj_type::obj_id) {
+    object* lObj,* rObj;
+    lObj = (object*) findObj(left.obj.name, scope, token);
+    rObj = (object*) findObj(right.obj.name, scope, token);
+    if (lObj != NULL && rObj != NULL && 
+        isArrayObj(lObj) && left.obj.idx == false && 
+        !(isArrayObj(rObj) && right.obj.idx == false)) {
+      right = left;
+    }
+  }
+}
+
+void printSymbolTable(std::string name, symbol_table &tbl) {
+  for (symbol_table::iterator it = tbl.begin(); it != tbl.end(); ++it) {
+    if (name.compare(it->first) != 0) {
+      std::cout << it->first << ": " << tblTypeToString(it->second->tblType);
+      
+      if (it->second->tblType == tbl_type::tbl_proc) {
+        procedure* proc = (procedure*) it->second;
+        std::cout << " " << proc->local.scope.size();
+        std::cout << " Begin proc ------------\n";
+        printSymbolTable(it->first, proc->local.scope);
+      } else {
+        if (it->second->tblType == tbl_type::tbl_param) {
+          param* x = (param*) it->second;
+          std::cout << " " << paramTypeToString(x->paramType);
+          std::cout << " " << x->order;
+        }
+        object* x = (object*) it->second;
+        std::cout << "\n  " << " " << objTypeToString(x->objType) << " [" << x->lb << ":" 
+                  << x->ub << "]" << "\n";
+      }
+    } else {
+      std::cout << it->first << ": self\n";
+    }
+  }
+  std::cout << "------------\n";
+}
+
 /* parser paradigm
  *   If a token was incorrect in a required parsing, the token is placed back where
  *     it was, EXCEPT if it might be a spelling error (identifier at keyword location
@@ -460,7 +506,6 @@ void p_program_body(std::string progN) {
       scanner.undo();
     }
     
-    // TODO codegen
     do { // statement repeat
       p_statement(exists, programObj->local.scope); 
       
@@ -1040,9 +1085,21 @@ void p_procedure_call(bool &exists, symbol_table &scope) {
         scanner.undo();
       }
       
-      bool hasArgs = false;
-      p_argument_list(hasArgs, scope, proc, 1); // will check to see that the params meet the proc 
-      // and add statements if they all work out
+      bool hasArgs = false; int cnt = 1;
+      p_argument_list(hasArgs, scope, proc, cnt); // will check to see that the params meet the proc 
+      int numParam = 0;
+      if (proc != NULL) {
+        for (symbol_table::iterator it = proc->local.scope.begin(); it != proc->local.scope.end(); ++it) {
+          if (it->second->tblType == tbl_type::tbl_param) {
+            numParam++;
+          }
+        }
+        
+        if (numParam != cnt) {
+          std::string errMsg = "Incorrect number of args to params <procedure_call>";
+          reportError(token, err_type::error, errMsg);
+        }
+      }
       
       if (a_getTok(token) && // )
           !check(token, token_type::type_symb, symb_type::symb_cl_paren)) {
@@ -1057,6 +1114,7 @@ void p_procedure_call(bool &exists, symbol_table &scope) {
 // ASSIGNMENT TYPE CONVERSION
 //   int <-> float
 //   int <-> bool
+//   no chaining (float -> int -> bool)
 void p_assignment_statement(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
@@ -1081,50 +1139,59 @@ void p_assignment_statement(bool &exists, symbol_table &scope) {
     }
     
     if (exists) {
+      symbol* tmp; object* obj;
+      
+      // make sure it is an object
+      if (dest.name.size() > 0) {
+        tmp = findObj(dest.name, scope, token);
+        if (tmp != NULL && (tmp->tblType == tbl_type::tbl_obj || tmp->tblType == tbl_type::tbl_param)) {
+          obj = (object*) tmp;
+          dest.varType = obj->objType; // save obj type into factor nameObj (so we don't have to look it up in the future)
+        } else {
+          std::string errMsg = "Symbol called is not an object <assignment_statement>";
+          reportError(token, err_type::error, errMsg);
+        }
+      }
+      
       factor expF = p_expression(exists, scope);
       if (!exists) {
         std::string errMsg = "Missing <expression> from <assignment_statement>";
         reportError(token, err_type::error, errMsg);
       } else {
-        // TODO typecheck left (destination) vs right
-        obj_type lType, rType; factor left;
-        left.objType = obj_type::obj_id; left.obj = dest;
-        checkArrayLength(lType, rType, left, expF, scope, token);
-        
-        /* TODO codegen and typecheck
-        bool suc = true, floatFlag = false;
-        if (lType == obj_type::obj_integer && rType == obj_type::obj_integer) {
-          if (opType != op_type::op_multi) {
-          } else { // div
-          }
+        // typecheck left (destination) vs right
+        if (obj != NULL) {
+          obj_type lType, rType; factor left;
+          left.objType = obj_type::obj_id; left.obj = dest;
+          checkArrayLength(lType, rType, left, expF, scope, token);
           
-        } else if (lType == obj_type::obj_integer && rType == obj_type::obj_float) {
-          floatFlag = true;
-          if (opType != op_type::op_multi) {
-          } else { // div
+          // TODO codegen
+          bool suc = true, floatFlag = false;
+          if (lType == rType) {
+            
+          } else {
+            if (lType == obj_type::obj_integer && rType == obj_type::obj_float) {
+              
+              
+            } else if (lType == obj_type::obj_float && rType == obj_type::obj_integer) {
+              
+              
+            } else if (lType == obj_type::obj_integer && rType == obj_type::obj_bool) {
+              
+              
+            } else if (lType == obj_type::obj_bool && rType == obj_type::obj_integer) {
+              
+              
+            } else {
+              std::string errMsg = "Incorrect types for assignment <assignment_statement>";
+              reportError(token, err_type::error, errMsg);
+              suc = false;
+            }
           }
-          
-        } else if (lType == obj_type::obj_float && rType == obj_type::obj_integer) {
-          floatFlag = true;
-          if (opType != op_type::op_multi) {
-          } else { // div
-          }
-          
-        } else if (lType == obj_type::obj_float && rType == obj_type::obj_float) {
-          floatFlag = true;
-          if (opType != op_type::op_multi) {
-          } else { // div
-          }
-          
-        } else {
-          std::string errMsg = "Incorrect types for multiply <term>";
-          reportError(token, err_type::error, errMsg);
-          suc = false;
-        }*/
-        
-        
+        }
       }
     }
+  } else {
+    exists = false;
   }
 }
 
@@ -1493,16 +1560,40 @@ factor p_expression(bool &exists, symbol_table &scope) {
       }
     }
     
-          // typecheck not can be with int, bool only TODO
-    
     out = p_arithOp(exists, scope);
     
     if (exists) {
       bool check = false;
       factor right = p_expression_pr(check, scope, out);
       if (check) {
-        out = right;
+        if (notFlag) {
+          std::string errMsg = "Keyword [not] cannot be with more than one expression <expression>";
+          reportError(token, err_type::error, errMsg);
+        } else {
+          out = right;
+        }
+      } else {
+        // typecheck not flag with alone arithOp
+        //   not can be with int, bool only
+        if (notFlag) {
+          obj_type outT = out.objType;
+          if (outT == obj_type::obj_id) {
+            outT = out.obj.varType;
+          }
+          
+          // TODO codegen
+          if (outT == obj_type::obj_integer) {
+            
+          } else if (outT == obj_type::obj_bool) {
+            
+          } else {
+            std::string errMsg = "Incorrect types for not <expression>";
+            reportError(token, err_type::error, errMsg);
+          }
+        }
       }
+      
+      
     }
   } else {
     exists = false;
@@ -1542,6 +1633,51 @@ factor p_expression_pr(bool &exists, symbol_table &scope, factor left) {
         
         if (exists) {
           // typecheck TODO
+          obj_type lType, rType;
+          checkArrayLength(lType, rType, left, right, scope, token);
+          
+          // TODO codegen
+          bool suc = true, floatFlag = false;
+          if (lType == obj_type::obj_integer && rType == obj_type::obj_integer) {
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_integer && rType == obj_type::obj_float) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_float && rType == obj_type::obj_integer) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_float && rType == obj_type::obj_float) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else {
+            std::string errMsg = "Incorrect types for multiply <term>";
+            reportError(token, err_type::error, errMsg);
+            suc = false;
+          }
+          
+          if (suc) { // if previously unsuccessful, don't do anything
+            leftRightRepl(left, right, scope, token);
+            
+            if (floatFlag) {
+              if (right.objType == obj_type::obj_id) {
+                right.obj.varType = obj_type::obj_float;
+              } else {
+                right.objType = obj_type::obj_float;
+              }
+            }
+          }
           
           bool check = false;
           factor tmpRight = p_expression_pr(check, scope, right);
@@ -1600,6 +1736,51 @@ factor p_arithOp_pr(bool &exists, symbol_table &scope, factor left) {
         
         if (exists) {
           // typecheck TODO
+          obj_type lType, rType;
+          checkArrayLength(lType, rType, left, right, scope, token);
+          
+          // TODO codegen
+          bool suc = true, floatFlag = false;
+          if (lType == obj_type::obj_integer && rType == obj_type::obj_integer) {
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_integer && rType == obj_type::obj_float) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_float && rType == obj_type::obj_integer) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_float && rType == obj_type::obj_float) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else {
+            std::string errMsg = "Incorrect types for multiply <term>";
+            reportError(token, err_type::error, errMsg);
+            suc = false;
+          }
+          
+          if (suc) { // if previously unsuccessful, don't do anything
+            leftRightRepl(left, right, scope, token);
+            
+            if (floatFlag) {
+              if (right.objType == obj_type::obj_id) {
+                right.obj.varType = obj_type::obj_float;
+              } else {
+                right.objType = obj_type::obj_float;
+              }
+            }
+          }
           
           bool check = false;
           factor tmpRight = p_arithOp_pr(check, scope, right);
@@ -1672,6 +1853,51 @@ factor p_relation_pr(bool &exists, symbol_table &scope, factor left) {
         
         if (exists) {
           // typecheck TODO
+          obj_type lType, rType;
+          checkArrayLength(lType, rType, left, right, scope, token);
+          
+          // TODO codegen
+          bool suc = true, floatFlag = false;
+          if (lType == obj_type::obj_integer && rType == obj_type::obj_integer) {
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_integer && rType == obj_type::obj_float) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_float && rType == obj_type::obj_integer) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_float && rType == obj_type::obj_float) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else {
+            std::string errMsg = "Incorrect types for multiply <term>";
+            reportError(token, err_type::error, errMsg);
+            suc = false;
+          }
+          
+          if (suc) { // if previously unsuccessful, don't do anything
+            leftRightRepl(left, right, scope, token);
+            
+            if (floatFlag) {
+              if (right.objType == obj_type::obj_id) {
+                right.obj.varType = obj_type::obj_float;
+              } else {
+                right.objType = obj_type::obj_float;
+              }
+            }
+          }
           
           bool check = false;
           factor tmpRight = p_relation_pr(check, scope, right);
@@ -1763,24 +1989,8 @@ factor p_term_pr(bool &exists, symbol_table &scope, factor left) {
             suc = false;
           }
           
-          // if only one is an id, return id as the main object
-          // if both are ids return the array
-          // if both are ids and neither or both are arrays, return the right id
-          // if neither are ids, return the right one
-          // TODO try to compress this into a fuction so that it can be reused?
           if (suc) { // if previously unsuccessful, don't do anything
-            if (left.objType == obj_type::obj_id && right.objType != obj_type::obj_id) {
-              right = left;
-            } else if (left.objType == obj_type::obj_id && right.objType == obj_type::obj_id) {
-              object* lObj,* rObj;
-              lObj = (object*) findObj(left.obj.name, scope, token);
-              rObj = (object*) findObj(right.obj.name, scope, token);
-              if (lObj != NULL && rObj != NULL && 
-                  isArrayObj(lObj) && left.obj.idx == false && 
-                  !(isArrayObj(rObj) && right.obj.idx == false)) {
-                right = left;
-              }
-            }
+            leftRightRepl(left, right, scope, token);
             
             if (floatFlag) {
               if (right.objType == obj_type::obj_id) {
@@ -1906,6 +2116,7 @@ factor p_factor(bool &exists, symbol_table &scope) {
   return out;
 }
 
+// TODO make sure matches with p_destination
 factor p_name(bool &exists, symbol_table &scope) {
   factor outF; outF.objType = obj_type::obj_none;
   if (!abortFlag) {
@@ -2012,22 +2223,42 @@ factor p_name(bool &exists, symbol_table &scope) {
   return outF;
 }
 
-// IF proc IS NULL, DON'T CHECK IF ARGUMENTS ARE CORRECT
-void p_argument_list(bool &exists, symbol_table &scope, procedure* proc, int i) {
+// Types must match perfectly for args, no implicit conversions
+void p_argument_list(bool &exists, symbol_table &scope, procedure* proc, int &i) {
   if (!abortFlag) {
     tok token;
     
-    // TODO typecheck
     bool prevArgs = exists;
     factor expF = p_expression(exists, scope);
     
     if (exists) {
       // check that expF can fit into procedure proc param at slot i
+      obj_type expT = expF.objType;
+      if (expT == obj_type::obj_id) {
+        //object* expO = (object*) findObj(expF.obj.name, scope, token);
+        expT = expF.obj.varType;
+      }
+      if (proc != NULL) {
+        // find a matching parameter object to assign expF to
+        for (symbol_table::iterator it = proc->local.scope.begin(); it != proc->local.scope.end(); ++it) {
+          if (it->second->tblType == tbl_type::tbl_param) {
+            param* paramO = (param*) it->second;
+            if (paramO->order == i && paramO->objType == expT) {
+              // TODO code gen
+              
+            } else {
+              std::string errMsg = "Arg types don't match with params <argument_list>";
+              reportError(token, err_type::error, errMsg);
+            }
+          }
+        }
+      }
     
       tok lookahead; peekTok(lookahead); // ,
       if (check(lookahead, token_type::type_symb, symb_type::symb_comma)) {
         getTok(token);
-        p_argument_list(exists, scope, proc, i + 1);
+        i++;
+        p_argument_list(exists, scope, proc, i);
       } else {
         p_expression(exists, scope);
         if (exists) {
@@ -2044,6 +2275,8 @@ void p_argument_list(bool &exists, symbol_table &scope, procedure* proc, int i) 
       reportError(token, err_type::error, errMsg);
       exists = true;
     }
+  } else {
+    exists = false;
   }
 }
 
@@ -2115,33 +2348,6 @@ factor p_char(bool &exists) {
     exists = false;
   }
   return out;
-}
-
-void printSymbolTable(std::string name, symbol_table &tbl) {
-  for (symbol_table::iterator it = tbl.begin(); it != tbl.end(); ++it) {
-    if (name.compare(it->first) != 0) {
-      std::cout << it->first << ": " << tblTypeToString(it->second->tblType);
-      
-      if (it->second->tblType == tbl_type::tbl_proc) {
-        procedure* proc = (procedure*) it->second;
-        std::cout << " " << proc->local.scope.size();
-        std::cout << " Begin proc ------------\n";
-        printSymbolTable(it->first, proc->local.scope);
-      } else {
-        if (it->second->tblType == tbl_type::tbl_param) {
-          param* x = (param*) it->second;
-          std::cout << " " << paramTypeToString(x->paramType);
-          std::cout << " " << x->order;
-        }
-        object* x = (object*) it->second;
-        std::cout << "\n  " << " " << objTypeToString(x->objType) << " [" << x->lb << ":" 
-                  << x->ub << "]" << "\n";
-      }
-    } else {
-      std::cout << it->first << ": self\n";
-    }
-  }
-  std::cout << "------------\n";
 }
 
 //====================== Main ======================//
