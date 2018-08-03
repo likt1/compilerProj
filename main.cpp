@@ -19,6 +19,8 @@ bool genCode = true;
 bool abortFlag = false;
 // lexer
 lexer scanner;
+// output code file
+std::string outFileName = "./codegen/out.ll"
 
 //====================== Populate functions ====================//
 void populateGlobalScope() {
@@ -2119,7 +2121,6 @@ factor p_factor(bool &exists, symbol_table &scope) {
   return out;
 }
 
-// TODO make sure matches with p_destination
 factor p_name(bool &exists, symbol_table &scope) {
   factor outF; outF.objType = obj_type::obj_none;
   if (!abortFlag) {
