@@ -62,7 +62,7 @@ void p_assignment_statement(bool &,
     symbol_table &);
 
 // exists safe
-nameObj p_destination(bool &,
+variableObj p_destination(bool &,
     symbol_table &); // type check complete (should)
 
 // exists checker

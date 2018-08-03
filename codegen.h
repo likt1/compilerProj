@@ -48,7 +48,7 @@ enum op_type {
   op_none
 };
 
-struct nameObj {
+struct variableObj {
   std::string name;
   obj_type varType;
   bool idx;
@@ -58,7 +58,7 @@ struct nameObj {
 
 struct factor {
   obj_type objType;
-  nameObj obj;
+  variableObj obj;
   std::string s;
   union {
     int i;
