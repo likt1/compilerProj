@@ -307,6 +307,44 @@ void print_errors() {
   }
 }
 
+symbol* findObj(std::string symbN, symbol_table &scope, tok &token) {
+  if (scope.count(symbN) != 0) {
+    return scope.find(symbN)->second;
+  } else if (globalScope.count(symbN) != 0) {
+    return globalScope.find(symbN)->second;
+  } else {
+    std::string errMsg = "Object does not exist or is not in scope";
+    reportError(token, err_type::error, errMsg);
+  }
+  return NULL;
+}
+
+void checkArrayLength(obj_type &lType, obj_type &rType, factor &left, factor &right, symbol_table &scope, tok &token) {
+  // check if both are ids, arrays, and not indexed, that their array sizes match
+  if ((left.objType == obj_type::obj_id && right.objType == obj_type::obj_id) &&
+      (left.obj.idx == false && right.obj.idx == false)) {
+    object* lObj,* rObj;
+    lObj = (object*) findObj(left.obj.name, scope, token);
+    rObj = (object*) findObj(right.obj.name, scope, token);
+    if (lObj == NULL || rObj == NULL || !isArrayLengthSame(lObj, rObj)) {
+      std::string errMsg = "Array lengths do not match";
+      reportError(token, err_type::error, errMsg);
+    }
+  }
+  
+  if (left.objType == obj_type::obj_id) {
+    lType = left.obj.varType;
+  } else {
+    lType = left.objType;
+  }
+  
+  if (right.objType == obj_type::obj_id) {
+    rType = right.obj.varType;
+  } else {
+    rType = right.objType;
+  }
+}
+
 /* parser paradigm
  *   If a token was incorrect in a required parsing, the token is placed back where
  *     it was, EXCEPT if it might be a spelling error (identifier at keyword location
@@ -985,14 +1023,7 @@ void p_procedure_call(bool &exists, symbol_table &scope) {
     if (exists) {
       print_dbg_message("is procedure\n");
       symbol* tmp; procedure* proc;
-      if (scope.count(procN) != 0) {
-        tmp = scope.find(procN)->second;
-      } else if (globalScope.count(procN) != 0) {
-        tmp = globalScope.find(procN)->second;
-      } else {
-        std::string errMsg = "Procedure not in scope <procedure_call>";
-        reportError(token, err_type::error, errMsg);
-      }
+      tmp = findObj(procN, scope, token);
       
       // make sure it is a procedure
       if (tmp != NULL && tmp->tblType == tbl_type::tbl_proc) {
@@ -1050,11 +1081,48 @@ void p_assignment_statement(bool &exists, symbol_table &scope) {
     }
     
     if (exists) {
-      p_expression(exists, scope);
-      // TODO typecheck left (destination) vs right
+      factor expF = p_expression(exists, scope);
       if (!exists) {
         std::string errMsg = "Missing <expression> from <assignment_statement>";
         reportError(token, err_type::error, errMsg);
+      } else {
+        // TODO typecheck left (destination) vs right
+        obj_type lType, rType; factor left;
+        left.objType = obj_type::obj_id; left.obj = dest;
+        checkArrayLength(lType, rType, left, expF, scope, token);
+        
+        /* TODO codegen and typecheck
+        bool suc = true, floatFlag = false;
+        if (lType == obj_type::obj_integer && rType == obj_type::obj_integer) {
+          if (opType != op_type::op_multi) {
+          } else { // div
+          }
+          
+        } else if (lType == obj_type::obj_integer && rType == obj_type::obj_float) {
+          floatFlag = true;
+          if (opType != op_type::op_multi) {
+          } else { // div
+          }
+          
+        } else if (lType == obj_type::obj_float && rType == obj_type::obj_integer) {
+          floatFlag = true;
+          if (opType != op_type::op_multi) {
+          } else { // div
+          }
+          
+        } else if (lType == obj_type::obj_float && rType == obj_type::obj_float) {
+          floatFlag = true;
+          if (opType != op_type::op_multi) {
+          } else { // div
+          }
+          
+        } else {
+          std::string errMsg = "Incorrect types for multiply <term>";
+          reportError(token, err_type::error, errMsg);
+          suc = false;
+        }*/
+        
+        
       }
     }
   }
@@ -1080,19 +1148,12 @@ nameObj p_destination(bool &exists, symbol_table &scope) {
       if (out.idx) { // if this is correct, must be a destination
         // check to see if it's in scope
         symbol* tmp; object* obj;
-        if (scope.count(out.name) != 0) {
-          tmp = scope.find(out.name)->second;
-        } else if (globalScope.count(out.name) != 0) {
-          tmp = globalScope.find(out.name)->second;
-        } else {
-          std::string errMsg = "Object does not exist or is not in scope <destination>";
-          reportError(token, err_type::error, errMsg);
-          out.name = "";
-        }
+        tmp = findObj(out.name, scope, token);
         
         // make sure it is an object
         if (tmp != NULL && (tmp->tblType == tbl_type::tbl_obj || tmp->tblType == tbl_type::tbl_param)) {
           obj = (object*) tmp;
+          out.varType = obj->objType; // save obj type into factor nameObj (so we don't have to look it up in the future)
         } else {
           std::string errMsg = "Symbol called is not an object <destination>";
           reportError(token, err_type::error, errMsg);
@@ -1130,13 +1191,16 @@ nameObj p_destination(bool &exists, symbol_table &scope) {
                 // THIS SEEMS LIKE A RUNTIME THING
                 //   IF THE EXPRESSION IS A VARIABLE SET BY getInteger(), 
                 //   WE CANNOT DO THIS DURING COMPILE TIME
-                object* expO = (object*) scope.find(expF.obj.name)->second;
-                if (expO->lb != expO->ub && !expF.obj.idx) {
-                  std::string errMsg = "Index cannot be an array <destination>";
-                  reportError(token, err_type::error, errMsg);
-                  out.name = "";
-                } else {
-                  out.boundsPos = expF.obj.name;
+                object* expO = (object*) findObj(expF.obj.name, scope, token);
+                if (expO != NULL) {
+                  if (expO->lb != expO->ub && !expF.obj.idx) {
+                    std::string errMsg = "Index cannot be an array <destination>";
+                    reportError(token, err_type::error, errMsg);
+                    out.name = "";
+                  } else {
+                    out.boundsIntPos = expF.i;
+                    out.boundsPos = expF.obj.name;
+                  }
                 }
               } else {
                 std::string errMsg = "Index must resolve into an integer <destination>";
@@ -1665,31 +1729,8 @@ factor p_term_pr(bool &exists, symbol_table &scope, factor left) {
         right = p_factor(exists, scope); 
         
         if (exists) {
-          // check if both are ids, arrays, and not indexed, that their array sizes match
-          if ((left.objType == obj_type::obj_id && right.objType == obj_type::obj_id) &&
-              (left.obj.idx == false && right.obj.idx == false)) {
-            object* lObj,* rObj;
-            lObj = (object*) scope.find(left.obj.name)->second;
-            rObj = (object*) scope.find(right.obj.name)->second;
-            if (!isArrayLengthSame(lObj, rObj)) {
-              std::string errMsg = "Array lengths do not match <term>";
-              reportError(token, err_type::error, errMsg);
-            }
-          }
-          
           obj_type lType, rType;
-          
-          if (left.objType == obj_type::obj_id) {
-            lType = left.obj.varType;
-          } else {
-            lType = left.objType;
-          }
-          
-          if (right.objType == obj_type::obj_id) {
-            rType = right.obj.varType;
-          } else {
-            rType = right.objType;
-          }
+          checkArrayLength(lType, rType, left, right, scope, token);
           
           // TODO codegen
           bool suc = true, floatFlag = false;
@@ -1732,9 +1773,10 @@ factor p_term_pr(bool &exists, symbol_table &scope, factor left) {
               right = left;
             } else if (left.objType == obj_type::obj_id && right.objType == obj_type::obj_id) {
               object* lObj,* rObj;
-              lObj = (object*) scope.find(left.obj.name)->second;
-              rObj = (object*) scope.find(right.obj.name)->second;
-              if (isArrayObj(lObj) && left.obj.idx == false && 
+              lObj = (object*) findObj(left.obj.name, scope, token);
+              rObj = (object*) findObj(right.obj.name, scope, token);
+              if (lObj != NULL && rObj != NULL && 
+                  isArrayObj(lObj) && left.obj.idx == false && 
                   !(isArrayObj(rObj) && right.obj.idx == false)) {
                 right = left;
               }
@@ -1875,15 +1917,7 @@ factor p_name(bool &exists, symbol_table &scope) {
       print_dbg_message("is name\n");
       // check to see if it's in scope
       symbol* tmp; object* obj;
-      if (scope.count(out.name) != 0) {
-        tmp = scope.find(out.name)->second;
-      } else if (globalScope.count(out.name) != 0) {
-        tmp = globalScope.find(out.name)->second;
-      } else {
-        std::string errMsg = "Object does not exist or is not in scope <name>";
-        reportError(token, err_type::error, errMsg);
-        out.name = "";
-      }
+      tmp = findObj(out.name, scope, token);
       
       // make sure it is an object
       if (tmp != NULL && (tmp->tblType == tbl_type::tbl_obj || tmp->tblType == tbl_type::tbl_param)) {
@@ -1937,13 +1971,16 @@ factor p_name(bool &exists, symbol_table &scope) {
                 // THIS SEEMS LIKE A RUNTIME THING
                 //   IF THE EXPRESSION IS A VARIABLE SET BY getInteger(), 
                 //   WE CANNOT DO THIS DURING COMPILE TIME
-                object* expO = (object*) scope.find(expF.obj.name)->second;
-                if (expO->lb != expO->ub && !expF.obj.idx) {
-                  std::string errMsg = "Index cannot be an array <name>";
-                  reportError(token, err_type::error, errMsg);
-                  out.name = "";
-                } else {
-                  out.boundsPos = expF.obj.name;
+                object* expO = (object*) findObj(expF.obj.name, scope, token);
+                if (expO != NULL) {
+                  if (expO->lb != expO->ub && !expF.obj.idx) {
+                    std::string errMsg = "Index cannot be an array <name>";
+                    reportError(token, err_type::error, errMsg);
+                    out.name = "";
+                  } else {
+                    out.boundsIntPos = expF.i;
+                    out.boundsPos = expF.obj.name;
+                  }
                 }
               } else {
                 std::string errMsg = "Index must resolve into an integer <name>";
