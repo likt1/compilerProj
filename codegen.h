@@ -113,8 +113,10 @@ bool isArrayObj(object* obj) {
 }
 
 bool isArrayLengthSame(object* obj1, object* obj2) {
-  return isArrayObj(obj1) && isArrayObj(obj2) &&
-         ((obj1->ub - obj1->lb) == (obj2->ub - obj2->lb));
+  if (isArrayObj(obj1) && isArrayObj(obj2)) {
+    return (obj1->ub - obj1->lb) == (obj2->ub - obj2->lb);
+  }
+  return true;
 }
 
 class param : public object {

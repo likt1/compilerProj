@@ -6,6 +6,7 @@
 #include <stack>
 
 #define DEBUG_FLAG false
+#define VISUAL_TABLE (DEBUG_FLAG || false)
 #define SCANNER_ONLY false
 
 //====================== Globals ======================//
@@ -1088,7 +1089,7 @@ void p_procedure_call(bool &exists, symbol_table &scope) {
         scanner.undo();
       }
       
-      bool hasArgs = false; int cnt = 1;
+      bool hasArgs = false; int cnt = 0;
       p_argument_list(hasArgs, scope, proc, cnt); // will check to see that the params meet the proc 
       int numParam = 0;
       if (proc != NULL) {
@@ -1115,9 +1116,12 @@ void p_procedure_call(bool &exists, symbol_table &scope) {
 }
 
 // ASSIGNMENT TYPE CONVERSION
-//   int <-> float
-//   int <-> bool
-//   no chaining (float -> int -> bool)
+//   char <-> int ? assignBoolAndChar.src
+//   int -> float ? proj description, but assignFloatToInt.src says float -/> int
+//   bool -> int ? assuming then, that 'compatible' in proj description means 
+//     left -> right (integer and float types are compatible aka int -> float),
+//     bool and integer types being compatible means bool -> int but not int -> bool
+//   no chaining (char -> int -> float)
 void p_assignment_statement(bool &exists, symbol_table &scope) {
   if (!abortFlag) {
     tok token;
@@ -1147,12 +1151,14 @@ void p_assignment_statement(bool &exists, symbol_table &scope) {
       // make sure it is an object
       if (dest.name.size() > 0) {
         tmp = findObj(dest.name, scope, token);
-        if (tmp != NULL && (tmp->tblType == tbl_type::tbl_obj || tmp->tblType == tbl_type::tbl_param)) {
-          obj = (object*) tmp;
-          dest.varType = obj->objType; // save obj type into factor variableObj (so we don't have to look it up in the future)
-        } else {
-          std::string errMsg = "Symbol called is not an object <assignment_statement>";
-          reportError(token, err_type::error, errMsg);
+        if (tmp != NULL) {
+          if (tmp->tblType == tbl_type::tbl_obj || tmp->tblType == tbl_type::tbl_param) {
+            obj = (object*) tmp;
+            dest.varType = obj->objType; // save obj type into factor variableObj (so we don't have to look it up in the future)
+          } else {
+            std::string errMsg = "Symbol called is not an object <assignment_statement>";
+            reportError(token, err_type::error, errMsg);
+          }
         }
       }
       
@@ -1162,26 +1168,29 @@ void p_assignment_statement(bool &exists, symbol_table &scope) {
         reportError(token, err_type::error, errMsg);
       } else {
         // typecheck left (destination) vs right
-        if (obj != NULL) {
+        if (obj != NULL && dest.name.size() > 0) {
           obj_type lType, rType; factor left;
           left.objType = obj_type::obj_id; left.obj = dest;
           checkArrayLength(lType, rType, left, expF, scope, token);
           
           // TODO codegen
+          //   single := single
+          //   array := array
+          //   array := single
           bool suc = true, floatFlag = false;
           if (lType == rType) {
             
           } else {
-            if (lType == obj_type::obj_integer && rType == obj_type::obj_float) {
-              
-              
-            } else if (lType == obj_type::obj_float && rType == obj_type::obj_integer) {
+            if (lType == obj_type::obj_float && rType == obj_type::obj_integer) {
               
               
             } else if (lType == obj_type::obj_integer && rType == obj_type::obj_bool) {
               
               
-            } else if (lType == obj_type::obj_bool && rType == obj_type::obj_integer) {
+            } else if (lType == obj_type::obj_integer && rType == obj_type::obj_char) {
+              
+              
+            } else if (lType == obj_type::obj_char && rType == obj_type::obj_integer) {
               
               
             } else {
@@ -1221,12 +1230,16 @@ variableObj p_destination(bool &exists, symbol_table &scope) {
         tmp = findObj(out.name, scope, token);
         
         // make sure it is an object
-        if (tmp != NULL && (tmp->tblType == tbl_type::tbl_obj || tmp->tblType == tbl_type::tbl_param)) {
-          obj = (object*) tmp;
-          out.varType = obj->objType; // save obj type into factor variableObj (so we don't have to look it up in the future)
+        if (tmp != NULL) {
+          if (tmp->tblType == tbl_type::tbl_obj || tmp->tblType == tbl_type::tbl_param) {
+            obj = (object*) tmp;
+            out.varType = obj->objType; // save obj type into factor variableObj (so we don't have to look it up in the future)
+          } else {
+            std::string errMsg = "Symbol called is not an object <destination>";
+            reportError(token, err_type::error, errMsg);
+            out.name = "";
+          }
         } else {
-          std::string errMsg = "Symbol called is not an object <destination>";
-          reportError(token, err_type::error, errMsg);
           out.name = "";
         }
       
@@ -1238,7 +1251,7 @@ variableObj p_destination(bool &exists, symbol_table &scope) {
         }
         
         // check to see that expression is an int within lb and ub
-        if (exists && obj != NULL) {
+        if (exists && obj != NULL && out.name.size() > 0) {
           if (obj->lb == obj->ub) { // obj is not an array so throw error
             std::string errMsg = "Cannot index into non-array object <destination>";
             reportError(token, err_type::error, errMsg);
@@ -1319,10 +1332,24 @@ void p_if_statement(bool &exists, symbol_table &scope) {
       }
       
       bool reqExists = false;
-      p_expression(reqExists, scope);
+      factor expF = p_expression(reqExists, scope);
       if (!reqExists) {
         std::string errMsg = "Missing <expression> from <if_statement>";
         reportError(token, err_type::error, errMsg);
+      } else {
+        // typecheck
+        obj_type expT = expF.objType;
+        if (expT == obj_type::obj_id) {
+          expT = expF.obj.varType;
+        }
+        if (expT == obj_type::obj_bool) {
+          // codegen? TODO
+        } else if (expT == obj_type::obj_integer) {
+          // convert to bool
+        } else {
+          std::string errMsg = "Expression in if statement must evaluate to bool or int";
+          reportError(token, err_type::error, errMsg);
+        }
       }
       
       if (a_getTok(token) && // )
@@ -1453,10 +1480,24 @@ void p_loop_statement(bool &exists, symbol_table &scope) {
         scanner.undo();
       }
       
-      p_expression(reqExists, scope);
+      factor expF = p_expression(reqExists, scope);
       if (!reqExists) {
         std::string errMsg = "Missing <expression> from <loop_statement>";
         reportError(token, err_type::error, errMsg);
+      } else {
+        // typecheck
+        obj_type expT = expF.objType;
+        if (expT == obj_type::obj_id) {
+          expT = expF.obj.varType;
+        }
+        if (expT == obj_type::obj_bool) {
+          // codegen? TODO
+        } else if (expT == obj_type::obj_integer) {
+          // convert to bool
+        } else {
+          std::string errMsg = "Expression in for statement must be bool or int";
+          reportError(token, err_type::error, errMsg);
+        }
       }
       
       if (a_getTok(token) && // )
@@ -1801,7 +1842,7 @@ factor p_relation_pr(bool &exists, symbol_table &scope, factor left) {
         opType = op_type::op_not_equals; // handle not equals
       } else if (check(token, token_type::type_symb, symb_type::symb_assign) ||
                  token.tokenType == token_type::type_illegal) {
-        // handle illegal
+        opType = op_type::op_ill; // handle illegal
         std::string errMsg = "Illegal symb in <expression>";
         reportError(token, err_type::error, errMsg);
       } else {
@@ -1823,12 +1864,16 @@ factor p_relation_pr(bool &exists, symbol_table &scope, factor left) {
             //   can be with int, float, bool, char only
             if (lType == obj_type::obj_integer) {
               // gen int comp
+              boolFlag = true;
             } else if (lType == obj_type::obj_float) {
               // gen float comp
+              boolFlag = true;
             } else if (lType == obj_type::obj_bool) {
               // gen bool comp
+              boolFlag = true;
             } else if (lType == obj_type::obj_char) {
               // gen char comp
+              boolFlag = true;
             } else {
               std::string errMsg = "Invalid types for relationals";
               reportError(token, err_type::error, errMsg);
@@ -2089,15 +2134,19 @@ factor p_name(bool &exists, symbol_table &scope) {
       tmp = findObj(out.name, scope, token);
       
       // make sure it is an object
-      if (tmp != NULL && (tmp->tblType == tbl_type::tbl_obj || tmp->tblType == tbl_type::tbl_param)) {
-        obj = (object*) tmp;
-        out.varType = obj->objType; // save obj type into factor variableObj (so we don't have to look it up in the future)
+      if (tmp != NULL) {
+        if (tmp->tblType == tbl_type::tbl_obj || tmp->tblType == tbl_type::tbl_param) {
+          obj = (object*) tmp;
+          out.varType = obj->objType; // save obj type into factor variableObj (so we don't have to look it up in the future)
+        } else {
+          std::string errMsg = "Symbol called is not an object <name>";
+          reportError(token, err_type::error, errMsg);
+          out.name = "";
+        }
       } else {
-        std::string errMsg = "Symbol called is not an object <name>";
-        reportError(token, err_type::error, errMsg);
         out.name = "";
       }
-    
+      
       out.idx = false;
       if (a_getTok(token)) { // optional [
         if (check(token, token_type::type_symb, symb_type::symb_op_bracket)) {
@@ -2108,6 +2157,7 @@ factor p_name(bool &exists, symbol_table &scope) {
       }
       
       if (out.idx) {
+        print_dbg_message("in name line");
         factor expF = p_expression(exists, scope);
         if (!exists) {
           std::string errMsg = "Missing index <expression> from <name>";
@@ -2116,8 +2166,7 @@ factor p_name(bool &exists, symbol_table &scope) {
         }
         
         // check to see that expression is an int within lb and ub
-        if (exists && obj != NULL) {
-          print_dbg_message("in line 1750");
+        if (exists && obj != NULL && out.name.size() > 0) {
           if (obj->lb == obj->ub) { // obj is not an array so throw error
             std::string errMsg = "Cannot index into non-array object <name>";
             reportError(token, err_type::error, errMsg);
@@ -2190,23 +2239,25 @@ void p_argument_list(bool &exists, symbol_table &scope, procedure* proc, int &i)
     factor expF = p_expression(exists, scope);
     
     if (exists) {
+      i++;
       // check that expF can fit into procedure proc param at slot i
       obj_type expT = expF.objType;
       if (expT == obj_type::obj_id) {
         //object* expO = (object*) findObj(expF.obj.name, scope, token);
         expT = expF.obj.varType;
       }
-      if (proc != NULL) {
+      if (proc != NULL && expT != obj_type::obj_none) {
         // find a matching parameter object to assign expF to
         for (symbol_table::iterator it = proc->local.scope.begin(); it != proc->local.scope.end(); ++it) {
           if (it->second->tblType == tbl_type::tbl_param) {
             param* paramO = (param*) it->second;
-            if (paramO->order == i && paramO->objType == expT) {
-              // TODO code gen
-              
-            } else {
-              std::string errMsg = "Arg types don't match with params <argument_list>";
-              reportError(token, err_type::error, errMsg);
+            if (paramO->order == i) {
+              if (paramO->objType == expT) {
+                // TODO code gen
+              } else {
+                std::string errMsg = "Arg types don't match with params <argument_list>";
+                reportError(token, err_type::error, errMsg);
+              }
             }
           }
         }
@@ -2215,7 +2266,6 @@ void p_argument_list(bool &exists, symbol_table &scope, procedure* proc, int &i)
       tok lookahead; peekTok(lookahead); // ,
       if (check(lookahead, token_type::type_symb, symb_type::symb_comma)) {
         getTok(token);
-        i++;
         p_argument_list(exists, scope, proc, i);
       } else {
         p_expression(exists, scope);
@@ -2311,7 +2361,7 @@ factor p_char(bool &exists) {
 //====================== Main ======================//
 int main(int argc, const char *argv[]) {
   if (argc == 2) {
-    std::cout << "Compiler start " << argv[1] << "\n";
+    std::cout << "Compiler start " << argv[1] << "\n\n";
     scanner.init(argv[1], &errList);
     
     populateGlobalScope();
@@ -2339,8 +2389,10 @@ int main(int argc, const char *argv[]) {
         float vect5[10:20];
       */
       
-      printSymbolTable("global", globalScope);
-      
+      if (VISUAL_TABLE) {
+        std::cout << "\n";
+        printSymbolTable("global", globalScope);
+      }
     } else {
       tok token;
     
