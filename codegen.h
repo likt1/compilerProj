@@ -29,7 +29,7 @@ enum obj_type {
   st_loop,
   st_return,
   st_proc_call
-};
+};*/
 
 enum op_type {
   op_minus,       // -
@@ -44,7 +44,8 @@ enum op_type {
   op_not_equals,  // !=
   op_multi,       // *
   op_div,         // /
-};*/
+  op_none
+};
 
 struct nameObj {
   std::string name;
@@ -105,6 +106,15 @@ public:
   int lb;
   int ub;
 };
+
+bool isArrayObj(object* obj) {
+  return obj->ub != obj->lb;
+}
+
+bool isArrayLengthSame(object* obj1, object* obj2) {
+  return isArrayObj(obj1) && isArrayObj(obj2) &&
+         ((obj1->ub - obj1->lb) == (obj2->ub - obj2->lb));
+}
 
 class param : public object {
 public:

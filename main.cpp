@@ -19,6 +19,92 @@ bool abortFlag = false;
 // lexer
 lexer scanner;
 
+//====================== Populate functions ====================//
+void populateGlobalScope() {
+  // populate globalScope with builtin functions
+  procedure* proc; param* paramO; symbol_elm elem; std::string procN, paramN = "val"; 
+  
+  procN = "getbool"; proc = new procedure(); proc->tblType = tbl_type::tbl_proc;
+  paramO = new param(); paramO->tblType = tbl_type::tbl_param; paramO->order = 1;
+  paramO->paramType = param_type::param_out; paramO->objType = obj_type::obj_bool;
+  elem = std::make_pair(paramN, paramO);
+  proc->local.scope.insert(elem);
+  elem = std::make_pair(procN, proc);
+  globalScope.insert(elem);
+  
+  procN = "getinteger"; proc = new procedure(); proc->tblType = tbl_type::tbl_proc;
+  paramO = new param(); paramO->tblType = tbl_type::tbl_param; paramO->order = 1;
+  paramO->paramType = param_type::param_out; paramO->objType = obj_type::obj_integer;
+  elem = std::make_pair(paramN, paramO);
+  proc->local.scope.insert(elem);
+  elem = std::make_pair(procN, proc);
+  globalScope.insert(elem);
+  
+  procN = "getfloat"; proc = new procedure(); proc->tblType = tbl_type::tbl_proc;
+  paramO = new param(); paramO->tblType = tbl_type::tbl_param; paramO->order = 1;
+  paramO->paramType = param_type::param_out; paramO->objType = obj_type::obj_float;
+  elem = std::make_pair(paramN, paramO);
+  proc->local.scope.insert(elem);
+  elem = std::make_pair(procN, proc);
+  globalScope.insert(elem);
+  
+  procN = "getstring"; proc = new procedure(); proc->tblType = tbl_type::tbl_proc;
+  paramO = new param(); paramO->tblType = tbl_type::tbl_param; paramO->order = 1;
+  paramO->paramType = param_type::param_out; paramO->objType = obj_type::obj_string;
+  elem = std::make_pair(paramN, paramO);
+  proc->local.scope.insert(elem);
+  elem = std::make_pair(procN, proc);
+  globalScope.insert(elem);
+  
+  procN = "getchar"; proc = new procedure(); proc->tblType = tbl_type::tbl_proc;
+  paramO = new param(); paramO->tblType = tbl_type::tbl_param; paramO->order = 1;
+  paramO->paramType = param_type::param_out; paramO->objType = obj_type::obj_char;
+  elem = std::make_pair(paramN, paramO);
+  proc->local.scope.insert(elem);
+  elem = std::make_pair(procN, proc);
+  globalScope.insert(elem);
+  
+  procN = "putbool"; proc = new procedure(); proc->tblType = tbl_type::tbl_proc;
+  paramO = new param(); paramO->tblType = tbl_type::tbl_param; paramO->order = 1;
+  paramO->paramType = param_type::param_in; paramO->objType = obj_type::obj_bool;
+  elem = std::make_pair(paramN, paramO);
+  proc->local.scope.insert(elem);
+  elem = std::make_pair(procN, proc);
+  globalScope.insert(elem);
+  
+  procN = "putinteger"; proc = new procedure(); proc->tblType = tbl_type::tbl_proc;
+  paramO = new param(); paramO->tblType = tbl_type::tbl_param; paramO->order = 1;
+  paramO->paramType = param_type::param_in; paramO->objType = obj_type::obj_integer;
+  elem = std::make_pair(paramN, paramO);
+  proc->local.scope.insert(elem);
+  elem = std::make_pair(procN, proc);
+  globalScope.insert(elem);
+  
+  procN = "putfloat"; proc = new procedure(); proc->tblType = tbl_type::tbl_proc;
+  paramO = new param(); paramO->tblType = tbl_type::tbl_param; paramO->order = 1;
+  paramO->paramType = param_type::param_in; paramO->objType = obj_type::obj_float;
+  elem = std::make_pair(paramN, paramO);
+  proc->local.scope.insert(elem);
+  elem = std::make_pair(procN, proc);
+  globalScope.insert(elem);
+  
+  procN = "putstring"; proc = new procedure(); proc->tblType = tbl_type::tbl_proc;
+  paramO = new param(); paramO->tblType = tbl_type::tbl_param; paramO->order = 1;
+  paramO->paramType = param_type::param_in; paramO->objType = obj_type::obj_string;
+  elem = std::make_pair(paramN, paramO);
+  proc->local.scope.insert(elem);
+  elem = std::make_pair(procN, proc);
+  globalScope.insert(elem);
+  
+  procN = "putchar"; proc = new procedure(); proc->tblType = tbl_type::tbl_proc;
+  paramO = new param(); paramO->tblType = tbl_type::tbl_param; paramO->order = 1;
+  paramO->paramType = param_type::param_in; paramO->objType = obj_type::obj_char;
+  elem = std::make_pair(paramN, paramO);
+  proc->local.scope.insert(elem);
+  elem = std::make_pair(procN, proc);
+  globalScope.insert(elem);
+}
+
 //====================== Utility functions ======================//
 void reportError(tok &token, err_type eT, std::string msg) {
   error_obj newError;
@@ -480,8 +566,8 @@ std::string p_procedure_header(bool &exists, symbol* &declared, symbol_table &sc
         suc = false;
       }
       
-      bool hasParams = false; int order = 1;
-      p_parameter_list(hasParams, suc, order, *proc); // params are automatically added
+      bool hasParams = false;
+      p_parameter_list(hasParams, suc, 1, *proc); // params are automatically added
       
       if (a_getTok(token) && // )
           !check(token, token_type::type_symb, symb_type::symb_cl_paren)) {
@@ -897,6 +983,7 @@ void p_procedure_call(bool &exists, symbol_table &scope) {
     // since procedure call is last on the statement list, if an identifier exists
     //   it has to be a procedure call
     if (exists) {
+      print_dbg_message("is procedure\n");
       symbol* tmp; procedure* proc;
       if (scope.count(procN) != 0) {
         tmp = scope.find(procN)->second;
@@ -923,7 +1010,7 @@ void p_procedure_call(bool &exists, symbol_table &scope) {
       }
       
       bool hasArgs = false;
-      p_argument_list(hasArgs, proc); // will check to see that the params meet the proc 
+      p_argument_list(hasArgs, scope, proc, 1); // will check to see that the params meet the proc 
       // and add statements if they all work out
       
       if (a_getTok(token) && // )
@@ -950,11 +1037,13 @@ void p_assignment_statement(bool &exists, symbol_table &scope) {
       tok lookahead; peekTok(lookahead); // check = or :=
       if (check(lookahead, token_type::type_symb, symb_type::symb_assign)) {
         getTok(token);
+        print_dbg_message("is assignment\n");
       } else if (check(lookahead, token_type::type_illegal, ill_type::ill_equals) ||
                  check(lookahead, token_type::type_symb, symb_type::symb_equals)) {
         std::string errMsg = "Malformed ':=' from <assignment_statement>";
         getTok(token);
         reportError(token, err_type::error, errMsg);
+        print_dbg_message("is assignment\n");
       } else {
         exists = false;
         scanner.undo();
@@ -1002,7 +1091,7 @@ nameObj p_destination(bool &exists, symbol_table &scope) {
         }
         
         // make sure it is an object
-        if (tmp != NULL && tmp->tblType == tbl_type::tbl_obj) {
+        if (tmp != NULL && (tmp->tblType == tbl_type::tbl_obj || tmp->tblType == tbl_type::tbl_param)) {
           obj = (object*) tmp;
         } else {
           std::string errMsg = "Symbol called is not an object <destination>";
@@ -1474,6 +1563,7 @@ factor p_term(bool &exists, symbol_table &scope) {
     out = p_factor(exists, scope);
     if (exists) {
       out = p_term_pr(exists, scope, out);
+      exists = true;
     }
     
   } else {
@@ -1482,46 +1572,117 @@ factor p_term(bool &exists, symbol_table &scope) {
   return out;
 }
 
-factor p_term_pr(bool &exists, symbol_table &scope, factor in) {
-  factor out; out.objType = obj_type::obj_none;
+factor p_term_pr(bool &exists, symbol_table &scope, factor left) {
+  factor right; right.objType = obj_type::obj_none;
   if (!abortFlag) {
     tok token;
     
+    op_type opType = op_type::op_none;
     if (a_getTok(token)) { // * or / and if neither exist backtrack
       if (check(token, token_type::type_symb, symb_type::symb_multi)) {
-        // handle multiply
-        out = p_factor(exists, scope);
-        
-        if (exists) {
-          // typecheck * can be with int, float only
-          obj_type left, right;
-          if (in.objType == obj_type::obj_id) {
-            
-          }
-        }
-        
-        p_term_pr(exists, scope, out);
+        opType = op_type::op_multi; // handle multiply
       } else if (check(token, token_type::type_symb, symb_type::symb_div)) {
-        // handle divide
-        out = p_factor(exists, scope);
-        
-        if (exists) {
-          // typecheck / can be with int, float only
-          obj_type left, right;
-          if (in.objType == obj_type::obj_id) {
-            
-          }
-        }
-        
-        p_term_pr(exists, scope, out);
+        opType = op_type::op_div; // handle divide
       } else {
         scanner.undo();
+      }
+      
+      // typecheck * and / can be with int, float only
+      if (opType != op_type::op_none) {
+        right = p_factor(exists, scope); 
+        
+        if (exists) {
+          // check if both are ids, arrays, and not indexed, that their array sizes match
+          if ((left.objType == obj_type::obj_id && right.objType == obj_type::obj_id) &&
+              (left.obj.idx == false && right.obj.idx == false)) {
+            object* lObj,* rObj;
+            lObj = (object*) scope.find(left.obj.name)->second;
+            rObj = (object*) scope.find(right.obj.name)->second;
+            if (!isArrayLengthSame(lObj, rObj)) {
+              std::string errMsg = "Array lengths do not match <term>";
+              reportError(token, err_type::error, errMsg);
+            }
+          }
+          
+          obj_type lType, rType;
+          
+          if (left.objType == obj_type::obj_id) {
+            lType = left.obj.varType;
+          } else {
+            lType = left.objType;
+          }
+          
+          if (right.objType == obj_type::obj_id) {
+            rType = right.obj.varType;
+          } else {
+            rType = right.objType;
+          }
+          
+          // TODO codegen
+          bool suc = true, floatFlag = false;
+          if (lType == obj_type::obj_integer && rType == obj_type::obj_integer) {
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_integer && rType == obj_type::obj_float) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_float && rType == obj_type::obj_integer) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else if (lType == obj_type::obj_float && rType == obj_type::obj_float) {
+            floatFlag = true;
+            if (opType != op_type::op_multi) {
+            } else { // div
+            }
+            
+          } else {
+            std::string errMsg = "Incorrect types for multiply <term>";
+            reportError(token, err_type::error, errMsg);
+            suc = false;
+          }
+          
+          // if only one is an id, return id as the main object
+          // if both are ids return the array
+          // if both are ids and neither or both are arrays, return the right id
+          // if neither are ids, return the right one
+          if (suc) { // if previously unsuccessful, don't do anything
+            if (left.objType == obj_type::obj_id && right.objType != obj_type::obj_id) {
+              right = left;
+            } else if (left.objType == obj_type::obj_id && right.objType == obj_type::obj_id) {
+              object* lObj,* rObj;
+              lObj = (object*) scope.find(left.obj.name)->second;
+              rObj = (object*) scope.find(right.obj.name)->second;
+              if (isArrayObj(lObj) && left.obj.idx == false && 
+                  !(isArrayObj(rObj) && right.obj.idx == false)) {
+                right = left;
+              }
+            }
+            
+            if (floatFlag) {
+              if (right.objType == obj_type::obj_id) {
+                right.obj.varType = obj_type::obj_float;
+              } else {
+                right.objType = obj_type::obj_float;
+              }
+            }
+          }
+          
+          right = p_term_pr(exists, scope, right);
+        }
       }
     }
   } else {
     exists = false;
   }
-  return out;
+  return right;
 }
 
 factor p_factor(bool &exists, symbol_table &scope) {
@@ -1558,7 +1719,7 @@ factor p_factor(bool &exists, symbol_table &scope) {
     } else {
       bool neg = false;
       if (a_getTok(token)) { // - if not backtrack
-        if (check(token, token_type::type_symb, symb_type::symb_op_paren)) {
+        if (check(token, token_type::type_symb, symb_type::symb_minus)) {
           neg = true; // handle negative
         } else {
           scanner.undo();
@@ -1630,6 +1791,7 @@ factor p_name(bool &exists, symbol_table &scope) {
     out.name = p_identifier(exists);
     
     if (exists) {
+      print_dbg_message("is name\n");
       // check to see if it's in scope
       symbol* tmp; object* obj;
       if (scope.count(out.name) != 0) {
@@ -1643,7 +1805,7 @@ factor p_name(bool &exists, symbol_table &scope) {
       }
       
       // make sure it is an object
-      if (tmp != NULL && tmp->tblType == tbl_type::tbl_obj) {
+      if (tmp != NULL && (tmp->tblType == tbl_type::tbl_obj || tmp->tblType == tbl_type::tbl_param)) {
         obj = (object*) tmp;
         out.varType = obj->objType; // save obj type into factor nameObj (so we don't have to look it up in the future)
       } else {
@@ -1671,6 +1833,7 @@ factor p_name(bool &exists, symbol_table &scope) {
         
         // check to see that expression is an int within lb and ub
         if (exists && obj != NULL) {
+          print_dbg_message("in line 1750");
           if (obj->lb == obj->ub) { // obj is not an array so throw error
             std::string errMsg = "Cannot index into non-array object <name>";
             reportError(token, err_type::error, errMsg);
@@ -1732,21 +1895,23 @@ factor p_name(bool &exists, symbol_table &scope) {
 }
 
 // IF proc IS NULL, DON'T CHECK IF ARGUMENTS ARE CORRECT
-void p_argument_list(bool &exists, procedure* proc) {
+void p_argument_list(bool &exists, symbol_table &scope, procedure* proc, int i) {
   if (!abortFlag) {
     tok token;
     
     // TODO typecheck
     bool prevArgs = exists;
-    p_expression(exists, proc->local.scope);
+    factor expF = p_expression(exists, scope);
     
     if (exists) {
+      // check that expF can fit into procedure proc param at slot i
+    
       tok lookahead; peekTok(lookahead); // ,
       if (check(lookahead, token_type::type_symb, symb_type::symb_comma)) {
         getTok(token);
-        p_argument_list(exists, proc);
+        p_argument_list(exists, scope, proc, i + 1);
       } else {
-        p_expression(exists, proc->local.scope);
+        p_expression(exists, scope);
         if (exists) {
           std::string errMsg = "Missing ',' from <argument_list>";
           reportError(token, err_type::error, errMsg);
@@ -1866,7 +2031,8 @@ int main(int argc, const char *argv[]) {
   if (argc == 2) {
     std::cout << "Compiler start " << argv[1] << "\n";
     scanner.init(argv[1], &errList);
-   
+    
+    populateGlobalScope();
     
     if (!SCANNER_ONLY) {
       p_program();
