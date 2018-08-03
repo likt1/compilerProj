@@ -6,3 +6,6 @@ compiler
 
 # program gui output
 results/*
+
+# codegen output
+codegen/out*
