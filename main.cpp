@@ -20,7 +20,8 @@ bool abortFlag = false;
 // lexer
 lexer scanner;
 // output code file
-std::string outFileName = "./codegen/out.ll"
+std::string outFileName = "./codegen/out.ll";
+tok glbToken;
 
 //====================== Populate functions ====================//
 void populateGlobalScope() {
@@ -110,11 +111,12 @@ void populateGlobalScope() {
 
 //====================== Utility functions ======================//
 void reportError(tok &token, err_type eT, std::string msg) {
+  // Just use the global tok location, it's good enough
   error_obj newError;
   newError.errT = eT;
   newError.msg = msg;
-  newError.lineNum = token.linePos;
-  newError.charNum = token.charPos;
+  newError.lineNum = glbToken.linePos;
+  newError.charNum = glbToken.charPos;
   
   if (eT != err_type::warning) {
     genCode = false;
@@ -181,6 +183,7 @@ bool getTok(tok &token) {
   if (!scanner.next_tok(token)) {
     genCode = false;
   } else {
+    glbToken = token;
     if (token.tokenType == type_string) {
       token.name = cleanDblQuotes(token.name);
     }
@@ -415,7 +418,6 @@ void printSymbolTable(std::string name, symbol_table &tbl) {
  *     the two values.  Parsing and type checking is still legal.
  */
 
-// TODO check that all error messages return valid token to the error throwing code
 // Function definitions exist in header parserF.h
 //====================== Parser functions ======================//
 void p_program() {  
